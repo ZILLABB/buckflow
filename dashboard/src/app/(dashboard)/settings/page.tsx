@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { CheckCircle2, Link2, Plus, Trash2, Zap } from "lucide-react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageTransition, FadeIn } from "@/components/ui/motion";
 
 interface Business {
   id: string;
@@ -27,44 +35,27 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-
-  // WhatsApp fields
   const [waPhoneId, setWaPhoneId] = useState("");
   const [waToken, setWaToken] = useState("");
-
-  // New rule fields
   const [ruleCategory, setRuleCategory] = useState("");
   const [ruleKeywords, setRuleKeywords] = useState("");
   const [ruleResponse, setRuleResponse] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      api.get<Business>("/business/me"),
-      api.get<Rule[]>("/business/rules"),
-    ])
-      .then(([biz, r]) => {
-        setBusiness(biz);
-        setRules(r);
-      })
-      .catch(console.error)
+    Promise.all([api.get<Business>("/business/me"), api.get<Rule[]>("/business/rules")])
+      .then(([biz, r]) => { setBusiness(biz); setRules(r); })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   async function saveWhatsApp() {
-    setSaving(true);
-    setMsg("");
+    setSaving(true); setMsg("");
     try {
-      await api.patch("/business/me", {
-        whatsapp_phone_number_id: waPhoneId,
-        whatsapp_api_token: waToken,
-      });
+      await api.patch("/business/me", { whatsapp_phone_number_id: waPhoneId, whatsapp_api_token: waToken });
       setMsg("WhatsApp settings saved!");
       setBusiness((b) => (b ? { ...b, whatsapp_connected: true } : b));
-    } catch (err: any) {
-      setMsg(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { setMsg(err.message); }
+    finally { setSaving(false); }
   }
 
   async function addRule() {
@@ -75,151 +66,156 @@ export default function SettingsPage() {
         keywords: ruleKeywords.split(",").map((k: string) => k.trim()),
         response_text: ruleResponse,
       });
-      const updated = await api.get<Rule[]>("/business/rules");
-      setRules(updated);
-      setRuleCategory("");
-      setRuleKeywords("");
-      setRuleResponse("");
-    } catch (err) {
-      console.error(err);
-    }
+      setRules(await api.get<Rule[]>("/business/rules"));
+      setRuleCategory(""); setRuleKeywords(""); setRuleResponse("");
+    } catch {}
   }
 
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold">Settings</h2>
+    <PageTransition>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Configure your business, WhatsApp, and automation rules</p>
+      </div>
 
-      {/* Business info */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-lg font-semibold">Business</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-sm text-gray-500">Name</p>
-            <p className="font-medium">{business?.name}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Slug</p>
-            <p className="font-mono text-sm">{business?.slug}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">WhatsApp</p>
-            <p
-              className={
-                business?.whatsapp_connected
-                  ? "font-medium text-green-600"
-                  : "font-medium text-red-500"
-              }
-            >
-              {business?.whatsapp_connected ? "Connected" : "Not Connected"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">AI</p>
-            <p className="font-medium">
-              {business?.ai_enabled ? "Enabled" : "Disabled"}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* WhatsApp setup */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-lg font-semibold">WhatsApp Connection</h3>
-        <div className="space-y-3">
-          <input
-            type="text"
-            placeholder="Phone Number ID (from Meta)"
-            value={waPhoneId}
-            onChange={(e) => setWaPhoneId(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:outline-none"
-          />
-          <input
-            type="password"
-            placeholder="WhatsApp API Token"
-            value={waToken}
-            onChange={(e) => setWaToken(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:outline-none"
-          />
-          <button
-            onClick={saveWhatsApp}
-            disabled={saving || !waPhoneId || !waToken}
-            className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save WhatsApp Settings"}
-          </button>
-          {msg && <p className="text-sm text-brand-600">{msg}</p>}
-        </div>
-      </section>
-
-      {/* Rule engine */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-lg font-semibold">
-          Auto-Response Rules (Free — No AI Cost)
-        </h3>
-
-        {rules.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {rules.map((rule) => (
-              <div
-                key={rule.id}
-                className="rounded-lg border p-3"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
-                    {rule.category}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    Keywords: {rule.keywords.join(", ")}
-                  </span>
+      <div className="space-y-6">
+        {/* Business info */}
+        <FadeIn>
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Profile</CardTitle>
+              <CardDescription>Your business details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Name</p>
+                  <p className="mt-1 font-semibold">{business?.name || "—"}</p>
                 </div>
-                <p className="mt-1 text-sm text-gray-700">
-                  {rule.response_text}
-                </p>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Slug</p>
+                  <p className="mt-1 font-mono text-sm text-muted-foreground">{business?.slug || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">WhatsApp</p>
+                  <Badge variant={business?.whatsapp_connected ? "success" : "destructive"} className="mt-1">
+                    {business?.whatsapp_connected ? "Connected" : "Not Connected"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">AI Engine</p>
+                  <Badge variant={business?.ai_enabled ? "success" : "secondary"} className="mt-1">
+                    {business?.ai_enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            </CardContent>
+          </Card>
+        </FadeIn>
 
-        <div className="space-y-3 rounded-lg border border-dashed border-gray-300 p-4">
-          <p className="text-sm font-medium text-gray-600">Add New Rule</p>
-          <input
-            type="text"
-            placeholder="Category (e.g. pricing, delivery, hours)"
-            value={ruleCategory}
-            onChange={(e) => setRuleCategory(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-brand-500 focus:outline-none"
-          />
-          <input
-            type="text"
-            placeholder="Keywords (comma-separated: price, how much, cost)"
-            value={ruleKeywords}
-            onChange={(e) => setRuleKeywords(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-brand-500 focus:outline-none"
-          />
-          <textarea
-            placeholder="Response text"
-            value={ruleResponse}
-            onChange={(e) => setRuleResponse(e.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-brand-500 focus:outline-none"
-          />
-          <button
-            onClick={addRule}
-            disabled={!ruleCategory || !ruleKeywords || !ruleResponse}
-            className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            Add Rule
-          </button>
-        </div>
-      </section>
-    </div>
+        {/* WhatsApp */}
+        <FadeIn delay={0.1}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Link2 className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div>
+                  <CardTitle>WhatsApp Connection</CardTitle>
+                  <CardDescription>Connect your Meta WhatsApp Business API</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Phone Number ID</label>
+                <Input placeholder="From Meta Business Dashboard" value={waPhoneId} onChange={(e) => setWaPhoneId(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">API Token</label>
+                <Input type="password" placeholder="Your WhatsApp API token" value={waToken} onChange={(e) => setWaToken(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button onClick={saveWhatsApp} disabled={saving || !waPhoneId || !waToken}>
+                  {saving ? "Saving..." : "Save Connection"}
+                </Button>
+                {msg && (
+                  <motion.span
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="flex items-center gap-1.5 text-sm text-emerald-600"
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> {msg}
+                  </motion.span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </FadeIn>
+
+        {/* Rules */}
+        <FadeIn delay={0.2}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Zap className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <CardTitle>Auto-Response Rules</CardTitle>
+                  <CardDescription>Free responses — no AI cost. Rules are checked before AI.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {rules.length > 0 && (
+                <div className="space-y-3">
+                  {rules.map((rule) => (
+                    <div key={rule.id} className="group rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize">{rule.category}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {rule.keywords.map((k) => (
+                                <span key={k} className="mr-1.5 inline-block rounded bg-muted px-1.5 py-0.5">{k}</span>
+                              ))}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{rule.response_text}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-xl border-2 border-dashed border-border/60 p-5 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Plus className="h-4 w-4 text-primary" />
+                  Add New Rule
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input placeholder="Category (pricing, delivery, hours)" value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} />
+                  <Input placeholder="Keywords (comma-separated)" value={ruleKeywords} onChange={(e) => setRuleKeywords(e.target.value)} />
+                </div>
+                <Textarea placeholder="Response text — this will be sent when keywords match" value={ruleResponse} onChange={(e) => setRuleResponse(e.target.value)} rows={3} />
+                <Button onClick={addRule} disabled={!ruleCategory || !ruleKeywords || !ruleResponse}>
+                  <Plus className="h-4 w-4" /> Add Rule
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </FadeIn>
+      </div>
+    </PageTransition>
   );
 }

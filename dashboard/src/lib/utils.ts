@@ -6,11 +6,19 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatNaira(kobo: number): string {
-  return `₦${(kobo / 100).toLocaleString("en-NG")}`;
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 0,
+  }).format(kobo / 100);
 }
 
 export function formatAmount(amount: number): string {
-  return `₦${amount.toLocaleString("en-NG")}`;
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 0,
+  }).format(amount);
 }
 
 export function timeAgo(dateStr: string): string {
@@ -21,20 +29,30 @@ export function timeAgo(dateStr: string): string {
   if (seconds < 60) return "just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return date.toLocaleDateString("en-NG", { month: "short", day: "numeric" });
 }
 
 export function statusColor(status: string): string {
   const colors: Record<string, string> = {
-    created: "bg-gray-100 text-gray-800",
-    confirmed: "bg-blue-100 text-blue-800",
-    paid: "bg-green-100 text-green-800",
-    processing: "bg-yellow-100 text-yellow-800",
-    shipped: "bg-purple-100 text-purple-800",
-    delivered: "bg-green-200 text-green-900",
-    cancel_requested: "bg-orange-100 text-orange-800",
-    cancelled: "bg-red-100 text-red-800",
-    refund_pending: "bg-red-200 text-red-900",
+    created: "bg-slate-100 text-slate-700 border-slate-200",
+    confirmed: "bg-blue-50 text-blue-700 border-blue-200",
+    paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    processing: "bg-amber-50 text-amber-700 border-amber-200",
+    shipped: "bg-violet-50 text-violet-700 border-violet-200",
+    delivered: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    cancel_requested: "bg-orange-50 text-orange-700 border-orange-200",
+    cancelled: "bg-rose-50 text-rose-700 border-rose-200",
+    refund_pending: "bg-rose-100 text-rose-800 border-rose-300",
   };
-  return colors[status] || "bg-gray-100 text-gray-800";
+  return colors[status] || "bg-slate-100 text-slate-700 border-slate-200";
+}
+
+export function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }

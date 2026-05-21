@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, User, Bot, UserCheck } from "lucide-react";
+import { MessageSquare, Bot, UserCheck, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn, timeAgo } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageTransition, StaggerContainer, StaggerItem } from "@/components/ui/motion";
 
 interface Conversation {
   id: string;
@@ -19,78 +24,94 @@ interface Conversation {
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     api
       .get<Conversation[]>("/conversations")
       .then(setConversations)
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = conversations.filter(
+    (c) =>
+      c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.customer_phone?.includes(search)
+  );
 
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Conversations</h2>
-        <span className="text-sm text-gray-500">
-          {conversations.length} active
-        </span>
-      </div>
-
-      {conversations.length === 0 ? (
-        <div className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200">
-          <MessageSquare className="mb-3 h-12 w-12 text-gray-300" />
-          <p className="text-gray-500">No conversations yet</p>
-          <p className="mt-1 text-sm text-gray-400">
-            Messages from WhatsApp will appear here
+    <PageTransition>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Conversations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {conversations.length} active conversation{conversations.length !== 1 && "s"}
           </p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {conversations.map((conv) => (
-            <Link
-              key={conv.id}
-              href={`/conversations/${conv.id}`}
-              className="flex items-center gap-4 rounded-xl border bg-white p-4 transition hover:shadow-md"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-100">
-                <User className="h-6 w-6 text-brand-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">
-                    {conv.customer_name || conv.customer_phone}
-                  </p>
-                  {conv.mode === "ai" ? (
-                    <Bot className="h-4 w-4 text-brand-500" />
-                  ) : (
-                    <UserCheck className="h-4 w-4 text-orange-500" />
-                  )}
-                </div>
-                <p className="truncate text-sm text-gray-500">
-                  {conv.last_message || "No messages"}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">
-                  {conv.last_message_at ? timeAgo(conv.last_message_at) : "—"}
-                </p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {conv.message_count} msgs
-                </p>
-              </div>
-            </Link>
-          ))}
+        <div className="w-full sm:w-72">
+          <Input
+            placeholder="Search conversations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            icon={<Search className="h-4 w-4" />}
+          />
         </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<MessageSquare className="h-7 w-7" />}
+          title="No conversations yet"
+          description="When customers message your WhatsApp, conversations will appear here automatically."
+        />
+      ) : (
+        <StaggerContainer className="space-y-2">
+          {filtered.map((conv) => (
+            <StaggerItem key={conv.id}>
+              <Link
+                href={`/conversations/${conv.id}`}
+                className="group flex items-center gap-4 rounded-xl border bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20"
+              >
+                <Avatar name={conv.customer_name || conv.customer_phone} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm">
+                      {conv.customer_name || conv.customer_phone}
+                    </p>
+                    <Badge variant={conv.mode === "ai" ? "success" : "warning"}>
+                      {conv.mode === "ai" ? (
+                        <><Bot className="mr-1 h-3 w-3" /> AI</>
+                      ) : (
+                        <><UserCheck className="mr-1 h-3 w-3" /> Human</>
+                      )}
+                    </Badge>
+                  </div>
+                  <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                    {conv.last_message || "No messages yet"}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {conv.last_message_at ? timeAgo(conv.last_message_at) : "—"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {conv.message_count} msg{conv.message_count !== 1 && "s"}
+                  </p>
+                </div>
+              </Link>
+            </StaggerItem>
+          ))}
+        </StaggerContainer>
       )}
-    </div>
+    </PageTransition>
   );
 }

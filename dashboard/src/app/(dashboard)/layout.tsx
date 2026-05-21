@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare,
   Package,
@@ -11,6 +12,8 @@ import {
   LogOut,
   Menu,
   X,
+  Headphones,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +24,7 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,32 +40,41 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-white shadow-lg transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col gradient-dark text-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-6">
-          <h1 className="text-xl font-bold text-brand-700">BuckFlow AI</h1>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden"
-          >
+        {/* Logo */}
+        <div className="flex h-16 items-center justify-between px-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 shadow-lg shadow-emerald-500/20">
+              <MessageSquare className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-base font-bold tracking-tight">BuckFlow AI</span>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
 
+        {/* Nav */}
         <nav className="flex-1 space-y-1 px-3 py-4">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -76,39 +84,66 @@ export default function DashboardLayout({
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                  "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   isActive
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    ? "bg-white/10 text-white"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon className={cn("h-[18px] w-[18px]", isActive && "text-emerald-400")} />
                 {item.label}
+                {isActive && (
+                  <ChevronRight className="ml-auto h-4 w-4 text-emerald-400" />
+                )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t p-3">
+        {/* Support card */}
+        <div className="mx-3 mb-3 rounded-lg bg-white/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
+              <Headphones className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs font-medium">Need help?</p>
+              <p className="text-xs text-slate-400">Contact support</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sign out */}
+        <div className="border-t border-white/10 p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-red-50 hover:text-red-600"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-rose-400"
           >
-            <LogOut className="h-5 w-5" />
+            <LogOut className="h-[18px] w-[18px]" />
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center gap-4 border-b bg-white px-6 lg:hidden">
-          <button onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-6 w-6" />
+        {/* Top bar */}
+        <header className="flex h-16 items-center gap-4 border-b bg-card px-6">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
+            <Menu className="h-5 w-5 text-muted-foreground" />
           </button>
-          <h1 className="text-lg font-bold text-brand-700">BuckFlow AI</h1>
+          <div className="flex-1" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+            B
+          </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
