@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Server, Database, Wifi, RefreshCw, CheckCircle2, XCircle, Activity } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,6 +13,7 @@ interface Health {
   database: string;
   redis: string;
   status: string;
+  whatsapp_connected_businesses: number;
 }
 
 export default function SystemPage() {
@@ -19,14 +21,17 @@ export default function SystemPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { showToast } = useToast();
+
   useEffect(() => { checkHealth(); }, []);
 
   async function checkHealth() {
     setRefreshing(true);
     try {
       setHealth(await api.get<Health>("/admin/health"));
-    } catch {
-      setHealth({ database: "unknown", redis: "unknown", status: "error" });
+    } catch (err: any) {
+      setHealth({ database: "unknown", redis: "unknown", status: "error", whatsapp_connected_businesses: 0 });
+      showToast(err.message || "Failed to check system health", "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -163,17 +168,22 @@ export default function SystemPage() {
                     <CardDescription>Meta Cloud API</CardDescription>
                   </div>
                 </div>
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                {(health?.whatsapp_connected_businesses || 0) > 0
+                  ? <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  : <XCircle className="h-5 w-5 text-muted-foreground" />
+                }
               </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <Badge variant="success">Connected</Badge>
+                <Badge variant={(health?.whatsapp_connected_businesses || 0) > 0 ? "success" : "secondary"}>
+                  {(health?.whatsapp_connected_businesses || 0) > 0 ? "Active" : "No connections"}
+                </Badge>
               </div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Version</span>
-                <span className="text-sm font-medium">v18.0</span>
+                <span className="text-sm text-muted-foreground">Connected</span>
+                <span className="text-sm font-medium">{health?.whatsapp_connected_businesses || 0} business{(health?.whatsapp_connected_businesses || 0) !== 1 ? "es" : ""}</span>
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Webhook</span>

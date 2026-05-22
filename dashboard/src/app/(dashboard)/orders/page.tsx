@@ -33,9 +33,13 @@ interface Order {
 
 const STATUSES = ["", "created", "confirmed", "paid", "processing", "shipped", "delivered", "cancel_requested", "cancelled"];
 
+const PAGE_SIZE = 30;
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [filter, setFilter] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { showToast } = useToast();
@@ -46,11 +50,31 @@ export default function OrdersPage() {
   async function loadOrders() {
     setLoading(true);
     try {
-      const params = filter ? `?status=${filter}` : "";
-      setOrders(await api.get<Order[]>(`/orders${params}`));
+      const params = new URLSearchParams();
+      if (filter) params.set("status", filter);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", "0");
+      const data = await api.get<Order[]>(`/orders?${params}`);
+      setOrders(data);
+      setHasMore(data.length >= PAGE_SIZE);
     } catch (err: any) {
       showToast(err.message || "Failed to load orders", "error");
     } finally { setLoading(false); }
+  }
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      if (filter) params.set("status", filter);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(orders.length));
+      const data = await api.get<Order[]>(`/orders?${params}`);
+      setOrders((prev) => [...prev, ...data]);
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (err: any) {
+      showToast(err.message || "Failed to load more", "error");
+    } finally { setLoadingMore(false); }
   }
 
   async function updateStatus(orderId: string, status: string) {
@@ -182,6 +206,19 @@ export default function OrdersPage() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+      )}
+
+      {/* Load More */}
+      {!loading && hasMore && orders.length > 0 && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? (
+              <><div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> Loading...</>
+            ) : (
+              "Load More"
+            )}
+          </Button>
+        </div>
       )}
     </PageTransition>
   );

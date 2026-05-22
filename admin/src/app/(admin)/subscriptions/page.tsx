@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Receipt, Search } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,9 @@ export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
+  const { showToast } = useToast();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadSubs(); }, [statusFilter]);
 
   async function loadSubs() {
@@ -38,7 +42,7 @@ export default function SubscriptionsPage() {
       const res = await api.get<{ items: Sub[]; total: number }>(`/admin/subscriptions?${params}`);
       setSubs(res.items);
       setTotal(res.total);
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) { showToast(err.message || "Failed to load subscriptions", "error"); } finally { setLoading(false); }
   }
 
   const statusVariant = (s: string) => {

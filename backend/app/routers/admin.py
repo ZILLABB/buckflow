@@ -629,8 +629,17 @@ async def system_health(
     except Exception:
         redis_ok = False
 
+    # Check how many businesses have WhatsApp configured
+    wa_connected = await db.scalar(
+        select(func.count(Business.id)).where(
+            Business.whatsapp_phone_number_id.isnot(None),
+            Business.whatsapp_verified == True,
+        )
+    ) or 0
+
     return {
         "database": "healthy" if db_ok else "unhealthy",
         "redis": "healthy" if redis_ok else "unhealthy",
+        "whatsapp_connected_businesses": wa_connected,
         "status": "healthy" if (db_ok and redis_ok) else "degraded",
     }

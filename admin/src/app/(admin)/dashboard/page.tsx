@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Building2, Users, MessageSquare, Package, TrendingUp, Bot, Zap, Database, UserCheck, CreditCard } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn, formatAmount, formatUSD, formatNumber } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -59,6 +60,7 @@ export default function AdminDashboard() {
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [topBiz, setTopBiz] = useState<TopBiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -73,8 +75,9 @@ export default function AdminDashboard() {
         setBreakdown(br);
         setTopBiz(top);
       })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load dashboard", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {

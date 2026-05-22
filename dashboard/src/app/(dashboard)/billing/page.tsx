@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CreditCard,
   Check,
@@ -97,22 +98,68 @@ const howItWorks = [
 ];
 
 export default function BillingPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+      </div>
+    }>
+      <BillingContent />
+    </Suspense>
+  );
+}
+
+function BillingContent() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
 
-  useEffect(() => {
-    Promise.all([
+  const loadBilling = useCallback(async () => {
+    const [p, s] = await Promise.all([
       api.get<Plan[]>("/billing/plans"),
       api.get<SubscriptionStatus>("/billing/subscription"),
-    ])
-      .then(([p, s]) => { setPlans(p); setSubscription(s); })
+    ]);
+    setPlans(p);
+    setSubscription(s);
+  }, []);
+
+  useEffect(() => {
+    loadBilling()
       .catch((err) => showToast(err.message || "Failed to load billing info", "error"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle Paystack payment callback verification
+  useEffect(() => {
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    const shouldVerify = searchParams.get("verify");
+    if ((reference || shouldVerify) && !verifying) {
+      if (reference) {
+        setVerifying(true);
+        api.post<{ verified: boolean; status: string }>("/billing/verify", { reference })
+          .then(async (result) => {
+            if (result.verified) {
+              showToast("Payment verified! Your subscription is now active.", "success");
+              await loadBilling();
+            } else {
+              showToast(`Payment status: ${result.status}. Please try again.`, "warning");
+            }
+          })
+          .catch((err) => showToast(err.message || "Payment verification failed", "error"))
+          .finally(() => {
+            setVerifying(false);
+            // Clean URL params
+            window.history.replaceState({}, "", "/billing");
+          });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   async function handleSubscribe(planId: string) {
     setSubscribing(planId);

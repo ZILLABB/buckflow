@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Users, Search, Shield, UserCheck, UserX } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,9 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const { showToast } = useToast();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadUsers(); }, [search, roleFilter]);
 
   async function loadUsers() {
@@ -41,21 +44,23 @@ export default function UsersPage() {
       const res = await api.get<{ items: UserItem[]; total: number }>(`/admin/users?${params}`);
       setUsers(res.items);
       setTotal(res.total);
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) { showToast(err.message || "Failed to load users", "error"); } finally { setLoading(false); }
   }
 
   async function toggleActive(id: string, currentActive: boolean) {
     try {
       await api.patch(`/admin/users/${id}`, { is_active: !currentActive });
+      showToast(currentActive ? "User deactivated" : "User activated");
       await loadUsers();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to update user", "error"); }
   }
 
   async function changeRole(id: string, newRole: string) {
     try {
       await api.patch(`/admin/users/${id}`, { role: newRole });
+      showToast("Role updated");
       await loadUsers();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to change role", "error"); }
   }
 
   const roleBadgeVariant = (role: string) => {

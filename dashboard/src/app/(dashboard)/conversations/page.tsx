@@ -6,6 +6,7 @@ import { MessageSquare, Bot, UserCheck, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { cn, timeAgo } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
@@ -22,20 +23,42 @@ interface Conversation {
   message_count: number;
 }
 
+const PAGE_SIZE = 30;
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
   const { showToast } = useToast();
 
   useEffect(() => {
     api
-      .get<Conversation[]>("/conversations")
-      .then(setConversations)
+      .get<Conversation[]>(`/conversations?limit=${PAGE_SIZE}&offset=0`)
+      .then((data) => {
+        setConversations(data);
+        setHasMore(data.length >= PAGE_SIZE);
+      })
       .catch((err) => showToast(err.message || "Failed to load conversations", "error"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const data = await api.get<Conversation[]>(
+        `/conversations?limit=${PAGE_SIZE}&offset=${conversations.length}`
+      );
+      setConversations((prev) => [...prev, ...data]);
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (err: any) {
+      showToast(err.message || "Failed to load more", "error");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const filtered = conversations.filter(
     (c) =>
@@ -114,6 +137,19 @@ export default function ConversationsPage() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+      )}
+
+      {/* Load More */}
+      {!loading && hasMore && filtered.length === conversations.length && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? (
+              <><div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> Loading...</>
+            ) : (
+              "Load More"
+            )}
+          </Button>
+        </div>
       )}
     </PageTransition>
   );

@@ -39,6 +39,7 @@ interface Business {
   outside_hours_message: string | null;
   booking_enabled: boolean;
   human_only_mode: boolean;
+  ai_system_prompt: string | null;
 }
 
 interface Rule {
@@ -60,11 +61,13 @@ export default function SettingsPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [connectingWa, setConnectingWa] = useState(false);
   const [waMsg, setWaMsg] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([api.get<Business>("/business/me"), api.get<Rule[]>("/business/rules")])
-      .then(([biz, r]) => { setBusiness(biz); setRules(r); })
+      .then(([biz, r]) => { setBusiness(biz); setRules(r); setAiPrompt(biz.ai_system_prompt || ""); })
       .catch((err) => showToast(err.message || "Failed to load settings", "error"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,11 +238,16 @@ export default function SettingsPage() {
                       value={business?.business_type || "product"}
                       onChange={async (e) => {
                         const val = e.target.value;
-                        await api.patch("/business/me", {
-                          business_type: val,
-                          booking_enabled: val === "service" || val === "hybrid",
-                        });
-                        setBusiness((b) => b ? { ...b, business_type: val } : b);
+                        try {
+                          await api.patch("/business/me", {
+                            business_type: val,
+                            booking_enabled: val === "service" || val === "hybrid",
+                          });
+                          setBusiness((b) => b ? { ...b, business_type: val } : b);
+                          showToast("Business type updated");
+                        } catch (err: any) {
+                          showToast(err.message || "Failed to update", "error");
+                        }
                       }}
                     >
                       <option value="product">Product / Sales</option>
@@ -253,8 +261,13 @@ export default function SettingsPage() {
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-shadow"
                       value={business?.category || "other"}
                       onChange={async (e) => {
-                        await api.patch("/business/me", { category: e.target.value });
-                        setBusiness((b) => b ? { ...b, category: e.target.value } : b);
+                        try {
+                          await api.patch("/business/me", { category: e.target.value });
+                          setBusiness((b) => b ? { ...b, category: e.target.value } : b);
+                          showToast("Category updated");
+                        } catch (err: any) {
+                          showToast(err.message || "Failed to update", "error");
+                        }
                       }}
                     >
                       <option value="retail">Retail / General Store</option>
@@ -270,6 +283,55 @@ export default function SettingsPage() {
                       <option value="other">Other</option>
                     </select>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
+
+          {/* ── AI Personality ── */}
+          <FadeIn delay={0.08}>
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                    <Bot className="h-4 w-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm">AI Personality</CardTitle>
+                    <CardDescription className="text-xs">Customize how AI responds to your customers</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  className="text-sm font-mono"
+                  placeholder="You are a helpful assistant for [Business Name]. You sell [products/services]. Be friendly, concise, and use simple English. Always quote prices in Naira (₦). Never invent prices or product details."
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  rows={5}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground">
+                    This prompt shapes every AI response. Leave blank for the default assistant.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={savingPrompt || aiPrompt === (business?.ai_system_prompt || "")}
+                    onClick={async () => {
+                      setSavingPrompt(true);
+                      try {
+                        await api.patch("/business/me", { ai_system_prompt: aiPrompt || null });
+                        setBusiness((b) => b ? { ...b, ai_system_prompt: aiPrompt || null } : b);
+                        showToast("AI prompt saved");
+                      } catch (err: any) {
+                        showToast(err.message || "Failed to save prompt", "error");
+                      } finally {
+                        setSavingPrompt(false);
+                      }
+                    }}
+                  >
+                    {savingPrompt ? "Saving..." : "Save Prompt"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -357,8 +419,13 @@ export default function SettingsPage() {
                   <button
                     onClick={async () => {
                       const newVal = !business?.human_only_mode;
-                      await api.patch("/business/me", { human_only_mode: newVal });
-                      setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
+                      try {
+                        await api.patch("/business/me", { human_only_mode: newVal });
+                        setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
+                        showToast(newVal ? "Switched to manual mode" : "Auto-pilot enabled");
+                      } catch (err: any) {
+                        showToast(err.message || "Failed to update", "error");
+                      }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                       isAutoPilot ? "bg-emerald-500" : "bg-muted-foreground/30"
@@ -390,8 +457,13 @@ export default function SettingsPage() {
                   <button
                     onClick={async () => {
                       const newVal = !business?.auto_reply_outside_hours;
-                      await api.patch("/business/me", { auto_reply_outside_hours: newVal });
-                      setBusiness((b) => b ? { ...b, auto_reply_outside_hours: newVal } : b);
+                      try {
+                        await api.patch("/business/me", { auto_reply_outside_hours: newVal });
+                        setBusiness((b) => b ? { ...b, auto_reply_outside_hours: newVal } : b);
+                        showToast(newVal ? "After-hours reply enabled" : "After-hours reply disabled");
+                      } catch (err: any) {
+                        showToast(err.message || "Failed to update", "error");
+                      }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                       business?.auto_reply_outside_hours ? "bg-primary" : "bg-muted-foreground/30"

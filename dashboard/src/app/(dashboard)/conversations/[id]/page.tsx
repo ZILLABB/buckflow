@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Bot, Cpu, UserCheck, Zap, Send } from "lucide-react";
+import { ArrowLeft, Bot, Cpu, UserCheck, Zap, Send, Archive, ArchiveRestore } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,8 @@ export default function ConversationDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<string>("ai");
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
   const { showToast } = useToast();
 
   const conversationId = params.id as string;
@@ -59,6 +61,30 @@ export default function ConversationDetailPage() {
     }
   }
 
+  async function sendReply() {
+    if (!replyText.trim() || sending) return;
+    setSending(true);
+    try {
+      const newMsg = await api.post<Message>(`/conversations/${conversationId}/reply`, {
+        message: replyText.trim(),
+      });
+      setMessages((prev) => [...prev, newMsg]);
+      setReplyText("");
+      showToast("Message sent");
+    } catch (err: any) {
+      showToast(err.message || "Failed to send message", "error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendReply();
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -75,17 +101,34 @@ export default function ConversationDetailPage() {
           <Button variant="ghost" size="sm" onClick={() => router.push("/conversations")}>
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          <Button
-            variant={mode === "ai" ? "default" : "warning"}
-            size="sm"
-            onClick={toggleMode}
-          >
-            {mode === "ai" ? (
-              <><Bot className="h-4 w-4" /> AI Mode</>
-            ) : (
-              <><UserCheck className="h-4 w-4" /> Human Mode</>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await api.patch(`/conversations/${conversationId}/archive`);
+                  showToast("Conversation archived");
+                  router.push("/conversations");
+                } catch (err: any) {
+                  showToast(err.message || "Failed to archive", "error");
+                }
+              }}
+            >
+              <Archive className="h-4 w-4" /> Archive
+            </Button>
+            <Button
+              variant={mode === "ai" ? "default" : "warning"}
+              size="sm"
+              onClick={toggleMode}
+            >
+              {mode === "ai" ? (
+                <><Bot className="h-4 w-4" /> AI Mode</>
+              ) : (
+                <><UserCheck className="h-4 w-4" /> Human Mode</>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -139,15 +182,22 @@ export default function ConversationDetailPage() {
           )}
         </div>
 
-        {/* Input area (visual only — sends happen via WhatsApp) */}
+        {/* Reply input */}
         <div className="mt-4 flex items-center gap-3 rounded-xl border bg-card p-3">
           <input
-            placeholder="Human takeover — type a message..."
-            disabled={mode === "ai"}
+            placeholder={mode === "ai" ? "Switch to human mode to reply..." : "Type a message..."}
+            disabled={mode === "ai" || sending}
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
           />
-          <Button size="icon" disabled={mode === "ai"}>
-            <Send className="h-4 w-4" />
+          <Button
+            size="icon"
+            disabled={mode === "ai" || sending || !replyText.trim()}
+            onClick={sendReply}
+          >
+            <Send className={cn("h-4 w-4", sending && "animate-pulse")} />
           </Button>
         </div>
       </div>

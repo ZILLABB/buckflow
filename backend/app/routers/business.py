@@ -71,6 +71,7 @@ async def get_my_business(
         "booking_lead_time_hours": biz.booking_lead_time_hours,
         "booking_slot_duration_mins": biz.booking_slot_duration_mins,
         "human_only_mode": biz.human_only_mode,
+        "ai_system_prompt": biz.ai_system_prompt,
     }
 
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Building2, Users, MessageSquare, Package, TrendingUp, Bot, Wifi, Phone, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { formatAmount, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,8 @@ export default function BusinessDetailPage() {
   const [savingWa, setSavingWa] = useState(false);
   const [waMsg, setWaMsg] = useState("");
 
+  const { showToast } = useToast();
+
   useEffect(() => {
     api.get<BusinessDetail>(`/admin/businesses/${params.id}`)
       .then((data) => {
@@ -56,8 +59,9 @@ export default function BusinessDetailPage() {
         setAiLimit(String(data.monthly_ai_limit));
         setConvLimit(String(data.monthly_conversation_limit));
       })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load business", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   async function saveLimits() {
@@ -68,7 +72,8 @@ export default function BusinessDetailPage() {
         monthly_conversation_limit: parseInt(convLimit),
       });
       setBiz((b) => b ? { ...b, monthly_ai_limit: parseInt(aiLimit), monthly_conversation_limit: parseInt(convLimit) } : b);
-    } catch {} finally { setSaving(false); }
+      showToast("Limits updated");
+    } catch (err: any) { showToast(err.message || "Failed to update limits", "error"); } finally { setSaving(false); }
   }
 
   async function toggleActive() {
@@ -76,7 +81,8 @@ export default function BusinessDetailPage() {
     try {
       await api.patch(`/admin/businesses/${params.id}`, { is_active: !biz.is_active });
       setBiz((b) => b ? { ...b, is_active: !b.is_active } : b);
-    } catch {}
+      showToast(biz.is_active ? "Business deactivated" : "Business activated");
+    } catch (err: any) { showToast(err.message || "Failed to update", "error"); }
   }
 
   async function toggleAI() {
@@ -84,7 +90,8 @@ export default function BusinessDetailPage() {
     try {
       await api.patch(`/admin/businesses/${params.id}`, { ai_enabled: !biz.ai_enabled });
       setBiz((b) => b ? { ...b, ai_enabled: !b.ai_enabled } : b);
-    } catch {}
+      showToast(biz.ai_enabled ? "AI disabled" : "AI enabled");
+    } catch (err: any) { showToast(err.message || "Failed to update", "error"); }
   }
 
   if (loading) {

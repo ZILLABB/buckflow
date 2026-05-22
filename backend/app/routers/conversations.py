@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -10,9 +11,10 @@ from app.core.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.conversation import Conversation, ConversationMode
 from app.models.customer import Customer, CustomerStatus
-from app.models.message import Message, MessageDirection
+from app.models.message import Message, MessageDirection, MessageType, ResponseSource
 from app.models.mode_change_log import ModeChangeLog
 from app.models.user import User
+from app.whatsapp.client import WhatsAppClient
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -20,6 +22,10 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 class ConversationModeUpdate(BaseModel):
     mode: str
     reason: str | None = None
+
+
+class ConversationReply(BaseModel):
+    message: str
 
 
 class ConversationAssign(BaseModel):
@@ -123,6 +129,78 @@ async def get_messages(
         }
         for m in messages
     ]
+
+
+@router.post("/{conversation_id}/reply")
+async def send_reply(
+    conversation_id: uuid.UUID,
+    data: ConversationReply,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a human reply to a customer via WhatsApp."""
+    conv = await db.scalar(
+        select(Conversation)
+        .options(selectinload(Conversation.customer))
+        .where(
+            Conversation.id == conversation_id,
+            Conversation.business_id == user.business_id,
+        )
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if not conv.customer:
+        raise HTTPException(status_code=400, detail="No customer linked to conversation")
+
+    # Get business WhatsApp credentials
+    from app.models.business import Business
+    business = await db.scalar(
+        select(Business).where(Business.id == user.business_id)
+    )
+    if not business or not business.whatsapp_phone_number_id or not business.whatsapp_api_token:
+        raise HTTPException(
+            status_code=400,
+            detail="WhatsApp is not configured for this business",
+        )
+
+    # Send via WhatsApp
+    wa_client = WhatsAppClient(
+        phone_number_id=business.whatsapp_phone_number_id,
+        api_token=business.whatsapp_api_token,
+    )
+    result = await wa_client.send_text(conv.customer.wa_id, data.message)
+
+    wa_msg_id = None
+    if result and "messages" in result:
+        wa_msg_id = result["messages"][0].get("id")
+
+    # Store the message
+    message = Message(
+        conversation_id=conv.id,
+        wa_message_id=wa_msg_id,
+        direction=MessageDirection.OUTBOUND,
+        content=data.message,
+        response_source=ResponseSource.HUMAN,
+    )
+    db.add(message)
+
+    # Update last_message_at
+    await db.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(last_message_at=datetime.now(timezone.utc))
+    )
+    await db.flush()
+
+    return {
+        "id": str(message.id),
+        "direction": "outbound",
+        "content": message.content,
+        "response_source": "human",
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+        "wa_message_id": wa_msg_id,
+    }
 
 
 @router.patch("/{conversation_id}/mode")

@@ -28,9 +28,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = (
+    ["*"]
+    if settings.environment == "development"
+    else [
+        "https://app.buckflow.ai",
+        "https://admin.buckflow.ai",
+    ]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

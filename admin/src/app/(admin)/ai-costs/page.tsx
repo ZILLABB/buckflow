@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Brain, DollarSign, Cpu, Zap } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { formatUSD, formatNumber } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -26,13 +27,16 @@ export default function AICostsPage() {
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
 
+  const { showToast } = useToast();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [days]);
 
   async function loadData() {
     setLoading(true);
     try {
       setData(await api.get<CostData>(`/admin/ai-costs?days=${days}`));
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) { showToast(err.message || "Failed to load AI costs", "error"); } finally { setLoading(false); }
   }
 
   if (loading) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2, Search, Filter, Users, ShoppingCart, Wifi, WifiOff, Bot, BotOff } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,10 +35,10 @@ export default function BusinessesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const { showToast } = useToast();
 
-  useEffect(() => {
-    loadBusinesses();
-  }, [search, statusFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadBusinesses(); }, [search, statusFilter]);
 
   async function loadBusinesses() {
     setLoading(true);
@@ -48,21 +49,23 @@ export default function BusinessesPage() {
       const res = await api.get<{ items: BusinessItem[]; total: number }>(`/admin/businesses?${params}`);
       setBusinesses(res.items);
       setTotal(res.total);
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) { showToast(err.message || "Failed to load businesses", "error"); } finally { setLoading(false); }
   }
 
   async function toggleActive(id: string, currentActive: boolean) {
     try {
       await api.patch(`/admin/businesses/${id}`, { is_active: !currentActive });
+      showToast(currentActive ? "Business deactivated" : "Business activated");
       await loadBusinesses();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to update business", "error"); }
   }
 
   async function toggleAI(id: string, currentAI: boolean) {
     try {
       await api.patch(`/admin/businesses/${id}`, { ai_enabled: !currentAI });
+      showToast(currentAI ? "AI disabled" : "AI enabled");
       await loadBusinesses();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to update AI setting", "error"); }
   }
 
   return (

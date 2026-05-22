@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CreditCard, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { formatAmount } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,13 +29,15 @@ export default function PlansPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Plan>>({});
 
+  const { showToast } = useToast();
+
   useEffect(() => { loadPlans(); }, []);
 
   async function loadPlans() {
     setLoading(true);
     try {
       setPlans(await api.get<Plan[]>("/admin/plans"));
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) { showToast(err.message || "Failed to load plans", "error"); } finally { setLoading(false); }
   }
 
   function startEdit(plan: Plan) {
@@ -52,15 +55,17 @@ export default function PlansPage() {
     try {
       await api.patch(`/admin/plans/${planId}`, editData);
       setEditing(null);
+      showToast("Plan updated");
       await loadPlans();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to update plan", "error"); }
   }
 
   async function togglePlan(planId: string, currentActive: boolean) {
     try {
       await api.patch(`/admin/plans/${planId}`, { is_active: !currentActive });
+      showToast(currentActive ? "Plan disabled" : "Plan enabled");
       await loadPlans();
-    } catch {}
+    } catch (err: any) { showToast(err.message || "Failed to toggle plan", "error"); }
   }
 
   if (loading) {
