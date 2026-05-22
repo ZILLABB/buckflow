@@ -17,6 +17,7 @@ import {
   CalendarDays,
   Users,
   CreditCard,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -28,6 +29,7 @@ interface BusinessInfo {
 
 // Base nav items shown for all business types
 const baseNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/conversations", label: "Conversations", icon: MessageSquare },
 ];
 

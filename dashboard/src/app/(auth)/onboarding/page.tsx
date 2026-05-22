@@ -78,10 +78,10 @@ export default function OnboardingPage() {
         category: selectedCategory,
         booking_enabled: selectedType === "service" || selectedType === "hybrid",
       });
-      router.push("/conversations");
+      router.push("/dashboard");
     } catch {
       // Still navigate — settings can be changed later
-      router.push("/conversations");
+      router.push("/dashboard");
     } finally {
       setSaving(false);
     }

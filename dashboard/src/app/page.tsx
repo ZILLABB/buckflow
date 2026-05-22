@@ -8,7 +8,7 @@ export default function Home() {
 
   useEffect(() => {
     const token = localStorage.getItem("bf_token");
-    router.replace(token ? "/conversations" : "/login");
+    router.replace(token ? "/dashboard" : "/login");
   }, [router]);
 
   return (

@@ -36,7 +36,7 @@ export default function LoginPage() {
       } else {
         const res = await api.post<{ access_token: string }>("/auth/login", { email, password });
         localStorage.setItem("bf_token", res.access_token);
-        router.push("/conversations");
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong");
