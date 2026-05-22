@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.business import Business
+from app.models.business import Business, BusinessType, BusinessCategory
 from app.models.user import User, UserRole
 from app.schemas.auth import UserCreate, UserLogin, TokenResponse, UserResponse
 
@@ -27,7 +27,24 @@ class AuthService:
         if existing_slug.scalar_one_or_none():
             slug = f"{slug}-{hash(data.email)%10000}"
 
-        business = Business(name=data.business_name, slug=slug, email=data.email)
+        # Resolve business type and category
+        try:
+            biz_type = BusinessType(data.business_type)
+        except ValueError:
+            biz_type = BusinessType.PRODUCT
+        try:
+            biz_category = BusinessCategory(data.category)
+        except ValueError:
+            biz_category = BusinessCategory.OTHER
+
+        business = Business(
+            name=data.business_name,
+            slug=slug,
+            email=data.email,
+            business_type=biz_type,
+            category=biz_category,
+            booking_enabled=(biz_type in (BusinessType.SERVICE, BusinessType.HYBRID)),
+        )
         self.db.add(business)
         await self.db.flush()
 

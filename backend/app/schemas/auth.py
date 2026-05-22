@@ -7,6 +7,8 @@ class UserCreate(BaseModel):
     full_name: str
     password: str
     business_name: str
+    business_type: str = "product"  # product, service, hybrid
+    category: str = "other"
 
 
 class UserLogin(BaseModel):

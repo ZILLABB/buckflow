@@ -31,11 +31,13 @@ export default function LoginPage() {
           email, password, full_name: fullName, business_name: businessName,
         });
         localStorage.setItem("bf_token", res.access_token);
+        // New users go to onboarding to pick business type
+        router.push("/onboarding");
       } else {
         const res = await api.post<{ access_token: string }>("/auth/login", { email, password });
         localStorage.setItem("bf_token", res.access_token);
+        router.push("/conversations");
       }
-      router.push("/conversations");
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {

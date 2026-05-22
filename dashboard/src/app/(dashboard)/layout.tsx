@@ -14,25 +14,74 @@ import {
   X,
   Headphones,
   ChevronRight,
+  CalendarDays,
+  Users,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
-const navItems = [
+interface BusinessInfo {
+  business_type: string;
+  booking_enabled: boolean;
+}
+
+// Base nav items shown for all business types
+const baseNavItems = [
   { href: "/conversations", label: "Conversations", icon: MessageSquare },
+];
+
+// Product-only items
+const productNavItems = [
   { href: "/orders", label: "Orders", icon: Package },
+];
+
+// Service-only items
+const serviceNavItems = [
+  { href: "/appointments", label: "Appointments", icon: CalendarDays },
+];
+
+// Common items for all
+const commonNavItems = [
+  { href: "/customers", label: "Customers", icon: Users },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+function getNavItems(businessType: string): typeof baseNavItems {
+  const items = [...baseNavItems];
+
+  if (businessType === "product" || businessType === "hybrid") {
+    items.push(...productNavItems);
+  }
+  if (businessType === "service" || businessType === "hybrid") {
+    items.push(...serviceNavItems);
+  }
+
+  items.push(...commonNavItems);
+  return items;
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [businessType, setBusinessType] = useState("hybrid"); // default: show all
 
   useEffect(() => {
     const token = localStorage.getItem("bf_token");
-    if (!token) router.replace("/login");
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    // Fetch business type to customize nav
+    api.get<BusinessInfo>("/business/me")
+      .then((biz) => setBusinessType(biz.business_type || "hybrid"))
+      .catch(() => {});
   }, [router]);
+
+  const navItems = getNavItems(businessType);
 
   function handleLogout() {
     localStorage.removeItem("bf_token");

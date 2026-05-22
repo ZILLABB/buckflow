@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Link2, Plus, Trash2, Zap } from "lucide-react";
+import { CheckCircle2, Link2, Plus, Trash2, Zap, Clock, Store } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,14 @@ interface Business {
   description: string | null;
   whatsapp_connected: boolean;
   ai_enabled: boolean;
+  business_type: string;
+  category: string;
+  operating_hours: Record<string, { open: string; close: string }> | null;
+  timezone: string;
+  auto_reply_outside_hours: boolean;
+  outside_hours_message: string | null;
+  booking_enabled: boolean;
+  human_only_mode: boolean;
 }
 
 interface Rule {
@@ -121,6 +129,72 @@ export default function SettingsPage() {
           </Card>
         </FadeIn>
 
+        {/* Business Type & Category */}
+        <FadeIn delay={0.05}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                  <Store className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle>Business Type</CardTitle>
+                  <CardDescription>This controls which features are shown in your dashboard</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Type</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={business?.business_type || "product"}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      await api.patch("/business/me", {
+                        business_type: val,
+                        booking_enabled: val === "service" || val === "hybrid",
+                      });
+                      setBusiness((b) => b ? { ...b, business_type: val } : b);
+                    }}
+                  >
+                    <option value="product">Product / Sales</option>
+                    <option value="service">Service / Bookings</option>
+                    <option value="hybrid">Both (Hybrid)</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Category</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={business?.category || "other"}
+                    onChange={async (e) => {
+                      await api.patch("/business/me", { category: e.target.value });
+                      setBusiness((b) => b ? { ...b, category: e.target.value } : b);
+                    }}
+                  >
+                    <option value="retail">Retail / General Store</option>
+                    <option value="restaurant">Restaurant / Food</option>
+                    <option value="salon">Salon / Beauty</option>
+                    <option value="spa">Spa / Wellness</option>
+                    <option value="clinic">Clinic / Healthcare</option>
+                    <option value="logistics">Logistics / Delivery</option>
+                    <option value="consulting">Consulting / Professional</option>
+                    <option value="fashion">Fashion / Clothing</option>
+                    <option value="electronics">Electronics / Tech</option>
+                    <option value="grocery">Grocery / Supermarket</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Product businesses see Orders. Service businesses see Appointments. Hybrid sees both.
+              </p>
+            </CardContent>
+          </Card>
+        </FadeIn>
+
         {/* WhatsApp */}
         <FadeIn delay={0.1}>
           <Card>
@@ -131,7 +205,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <CardTitle>WhatsApp Connection</CardTitle>
-                  <CardDescription>Connect your Meta WhatsApp Business API</CardDescription>
+                  <CardDescription>Connect your Meta WhatsApp Business API — this is optional and can be done later</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -157,6 +231,92 @@ export default function SettingsPage() {
                   </motion.span>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </FadeIn>
+
+        {/* Automation Controls */}
+        <FadeIn delay={0.15}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                  <Clock className="h-4 w-4 text-violet-600" />
+                </div>
+                <div>
+                  <CardTitle>Automation & Hours</CardTitle>
+                  <CardDescription>Control when AI responds and set business hours</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Human-only toggle */}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">Human-Only Mode</p>
+                  <p className="text-xs text-muted-foreground">Turn off all AI responses — only human agents reply</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const newVal = !business?.human_only_mode;
+                    await api.patch("/business/me", { human_only_mode: newVal });
+                    setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    business?.human_only_mode ? "bg-amber-500" : "bg-muted"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      business?.human_only_mode ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Outside hours auto-reply toggle */}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">Auto-Reply Outside Hours</p>
+                  <p className="text-xs text-muted-foreground">Send a message when customers text outside business hours</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const newVal = !business?.auto_reply_outside_hours;
+                    await api.patch("/business/me", { auto_reply_outside_hours: newVal });
+                    setBusiness((b) => b ? { ...b, auto_reply_outside_hours: newVal } : b);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    business?.auto_reply_outside_hours ? "bg-primary" : "bg-muted"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      business?.auto_reply_outside_hours ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Outside hours message */}
+              {business?.auto_reply_outside_hours && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Outside Hours Message</label>
+                  <Textarea
+                    placeholder="Thanks for reaching out! We're currently closed..."
+                    value={business?.outside_hours_message || ""}
+                    rows={2}
+                    onChange={(e) => setBusiness((b) => b ? { ...b, outside_hours_message: e.target.value } : b)}
+                    onBlur={async (e) => {
+                      await api.patch("/business/me", { outside_hours_message: e.target.value });
+                    }}
+                  />
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Business hours can be set per day. The system uses your timezone ({business?.timezone || "Africa/Lagos"}) to determine open/closed status.
+              </p>
             </CardContent>
           </Card>
         </FadeIn>
