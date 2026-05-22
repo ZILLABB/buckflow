@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, Users, Shield, Flag, Tag, ToggleLeft, ToggleRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -43,8 +45,9 @@ export default function CustomersPage() {
 
     api.get<Customer[]>(`/conversations/customers${query}`)
       .then(setCustomers)
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load customers", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
 
   async function toggleAI(id: string, current: boolean) {
@@ -53,7 +56,9 @@ export default function CustomersPage() {
       setCustomers((prev) =>
         prev.map((c) => (c.id === id ? { ...c, ai_enabled: !current } : c))
       );
-    } catch {}
+    } catch (err: any) {
+      showToast(err.message || "Failed to update", "error");
+    }
   }
 
   async function toggleFlag(id: string, current: boolean) {
@@ -62,7 +67,9 @@ export default function CustomersPage() {
       setCustomers((prev) =>
         prev.map((c) => (c.id === id ? { ...c, is_flagged: !current } : c))
       );
-    } catch {}
+    } catch (err: any) {
+      showToast(err.message || "Failed to update", "error");
+    }
   }
 
   async function updateStatus(id: string, status: string) {
@@ -71,7 +78,9 @@ export default function CustomersPage() {
       setCustomers((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status } : c))
       );
-    } catch {}
+    } catch (err: any) {
+      showToast(err.message || "Failed to update status", "error");
+    }
   }
 
   if (loading) {

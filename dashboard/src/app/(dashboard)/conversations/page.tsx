@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, Bot, UserCheck, Search } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn, timeAgo } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,13 +26,15 @@ export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     api
       .get<Conversation[]>("/conversations")
       .then(setConversations)
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load conversations", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = conversations.filter(

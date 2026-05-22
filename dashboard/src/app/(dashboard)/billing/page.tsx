@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Zap, ArrowRight, Shield } from "lucide-react";
+import {
+  CreditCard,
+  Check,
+  Zap,
+  ArrowRight,
+  Shield,
+  MessageCircle,
+  Bot,
+  User,
+  BookOpen,
+} from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,11 +65,43 @@ const tierFeatures: Record<string, string[]> = {
   ],
 };
 
+const howItWorks = [
+  {
+    icon: MessageCircle,
+    color: "text-blue-600",
+    bg: "bg-blue-500/10",
+    title: "Customer sends a message",
+    description: "A customer messages your WhatsApp Business number",
+  },
+  {
+    icon: Zap,
+    color: "text-amber-600",
+    bg: "bg-amber-500/10",
+    title: "Rules are checked first",
+    description: "Your response rules are matched instantly — this is always free",
+  },
+  {
+    icon: Bot,
+    color: "text-emerald-600",
+    bg: "bg-emerald-500/10",
+    title: "AI generates a smart reply",
+    description: "If no rule matches, AI crafts a context-aware response",
+  },
+  {
+    icon: User,
+    color: "text-violet-600",
+    bg: "bg-violet-500/10",
+    title: "You can take over anytime",
+    description: "Switch any conversation to manual mode with one click",
+  },
+];
+
 export default function BillingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -66,8 +109,9 @@ export default function BillingPage() {
       api.get<SubscriptionStatus>("/billing/subscription"),
     ])
       .then(([p, s]) => { setPlans(p); setSubscription(s); })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load billing info", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubscribe(planId: string) {
@@ -77,9 +121,9 @@ export default function BillingPage() {
         plan_id: planId,
         callback_url: window.location.origin + "/billing?verify=true",
       });
-      // Redirect to Paystack checkout
       window.location.href = result.authorization_url;
-    } catch {
+    } catch (err: any) {
+      showToast(err.message || "Failed to start subscription", "error");
       setSubscribing("");
     }
   }
@@ -100,6 +144,44 @@ export default function BillingPage() {
           Manage your subscription and choose the plan that fits your business
         </p>
       </div>
+
+      {/* How It Works */}
+      <FadeIn>
+        <Card className="mb-8 border-primary/10 bg-gradient-to-r from-primary/[0.03] via-transparent to-primary/[0.02]">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                <BookOpen className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-sm">How it works</CardTitle>
+                <CardDescription className="text-xs">Understand what you're paying for</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {howItWorks.map((step, i) => (
+                <div key={i} className="relative flex items-start gap-3">
+                  {i < howItWorks.length - 1 && (
+                    <div className="absolute left-[18px] top-10 hidden h-[calc(100%-16px)] w-px bg-border lg:hidden sm:block" />
+                  )}
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${step.bg}`}>
+                    <step.icon className={`h-4 w-4 ${step.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground/60">STEP {i + 1}</span>
+                    </div>
+                    <p className="text-sm font-medium mt-0.5">{step.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </FadeIn>
 
       {/* Current Subscription */}
       {subscription?.has_subscription && (
@@ -176,7 +258,7 @@ export default function BillingPage() {
                       onClick={() => handleSubscribe(plan.id)}
                       disabled={subscribing === plan.id}
                     >
-                      {subscribing === plan.id ? "Redirecting..." : "Upgrade"}
+                      {subscribing === plan.id ? "Redirecting..." : plan.price_naira === 0 ? "Get Started" : "Upgrade"}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   )}
@@ -190,7 +272,7 @@ export default function BillingPage() {
       {/* Security note */}
       <FadeIn delay={0.4}>
         <div className="mt-8 flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
-          <Shield className="h-5 w-5 text-muted-foreground" />
+          <Shield className="h-5 w-5 text-muted-foreground shrink-0" />
           <p className="text-xs text-muted-foreground">
             Payments are processed securely by Paystack. We never store your card details.
             You can cancel your subscription at any time.

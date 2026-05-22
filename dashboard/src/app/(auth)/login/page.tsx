@@ -27,15 +27,16 @@ export default function LoginPage() {
       if (isRegister) {
         const fullName = form.get("full_name") as string;
         const businessName = form.get("business_name") as string;
-        const res = await api.post<{ access_token: string }>("/auth/register", {
+        const res = await api.post<{ access_token: string; user?: { id: string; email: string; full_name: string; role: string; business_id: string } }>("/auth/register", {
           email, password, full_name: fullName, business_name: businessName,
         });
         localStorage.setItem("bf_token", res.access_token);
-        // New users go to onboarding to pick business type
+        if (res.user) localStorage.setItem("bf_user", JSON.stringify(res.user));
         router.push("/onboarding");
       } else {
-        const res = await api.post<{ access_token: string }>("/auth/login", { email, password });
+        const res = await api.post<{ access_token: string; user?: { id: string; email: string; full_name: string; role: string; business_id: string } }>("/auth/login", { email, password });
         localStorage.setItem("bf_token", res.access_token);
+        if (res.user) localStorage.setItem("bf_user", JSON.stringify(res.user));
         router.push("/dashboard");
       }
     } catch (err: any) {

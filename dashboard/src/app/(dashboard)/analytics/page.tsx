@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Users, MessageSquare, Package, TrendingUp, Bot, Zap, UserCheck, Database } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn, formatAmount } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -49,6 +50,7 @@ export default function AnalyticsPage() {
   const [daily, setDaily] = useState<DailyUsage[]>([]);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -62,8 +64,9 @@ export default function AnalyticsPage() {
         setDaily(usage.daily);
         setBreakdown(br);
       })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load analytics", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {

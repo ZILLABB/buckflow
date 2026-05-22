@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
   Plus,
   Zap,
   Clock,
   Store,
-  MessageCircle,
   Bot,
   Phone,
-  AlertCircle,
-  Sparkles,
+  Wifi,
+  WifiOff,
+  Shield,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,12 +60,14 @@ export default function SettingsPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [connectingWa, setConnectingWa] = useState(false);
   const [waMsg, setWaMsg] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([api.get<Business>("/business/me"), api.get<Rule[]>("/business/rules")])
       .then(([biz, r]) => { setBusiness(biz); setRules(r); })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load settings", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function connectWhatsApp() {
@@ -72,10 +76,11 @@ export default function SettingsPage() {
     setWaMsg("");
     try {
       await api.post("/business/connect-whatsapp", { phone_number: phoneNumber });
-      setWaMsg("Request sent! Our team will connect your number within 24 hours.");
-      setBusiness((b) => b ? { ...b, whatsapp_connected: false } : b);
+      setWaMsg("Request sent! We'll connect your number within 24 hours.");
+      showToast("Connection request sent!");
     } catch (err: any) {
       setWaMsg(err.message || "Something went wrong");
+      showToast(err.message || "Failed to send connection request", "error");
     } finally {
       setConnectingWa(false);
     }
@@ -91,7 +96,19 @@ export default function SettingsPage() {
       });
       setRules(await api.get<Rule[]>("/business/rules"));
       setRuleCategory(""); setRuleKeywords(""); setRuleResponse("");
-    } catch {}
+      showToast("Rule added successfully");
+    } catch (err: any) {
+      showToast(err.message || "Failed to add rule", "error");
+    }
+  }
+
+  async function deleteRule(ruleId: string) {
+    try {
+      await api.delete(`/business/rules/${ruleId}`);
+      setRules((prev) => prev.filter((r) => r.id !== ruleId));
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete rule", "error");
+    }
   }
 
   if (loading) {
@@ -108,355 +125,332 @@ export default function SettingsPage() {
     <PageTransition>
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Configure your business and how AI handles your customers</p>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your business configuration</p>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        {/* ── Left Column ── */}
+        <div className="space-y-6">
 
-        {/* ── WhatsApp Connection Status ── */}
-        <FadeIn>
-          <Card className={business?.whatsapp_connected ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20" : ""}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                  business?.whatsapp_connected ? "bg-emerald-500/10" : "bg-amber-500/10"
-                }`}>
-                  <MessageCircle className={`h-4 w-4 ${
-                    business?.whatsapp_connected ? "text-emerald-600" : "text-amber-600"
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <CardTitle>WhatsApp</CardTitle>
-                  <CardDescription>
-                    {business?.whatsapp_connected
-                      ? "Your WhatsApp number is connected and receiving messages"
-                      : "Connect your WhatsApp number to start receiving customer messages"
-                    }
-                  </CardDescription>
-                </div>
-                <Badge variant={business?.whatsapp_connected ? "success" : "outline"}>
-                  {business?.whatsapp_connected ? "Connected" : "Pending"}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {business?.whatsapp_connected ? (
-                <div className="flex items-center gap-3 rounded-lg bg-emerald-100/50 dark:bg-emerald-900/20 p-4">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <div>
-                    <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">WhatsApp is active</p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Customer messages are being received and processed</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 p-4">
-                    <AlertCircle className="mt-0.5 h-4 w-4 text-amber-600 shrink-0" />
+          {/* ── WhatsApp Connection ── */}
+          <FadeIn>
+            <Card className="overflow-hidden">
+              <div className={`h-1 w-full ${business?.whatsapp_connected ? "bg-emerald-500" : "bg-slate-200"}`} />
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                      business?.whatsapp_connected
+                        ? "bg-emerald-500 shadow-lg shadow-emerald-500/20"
+                        : "bg-slate-100"
+                    }`}>
+                      {business?.whatsapp_connected ? (
+                        <Wifi className="h-5 w-5 text-white" />
+                      ) : (
+                        <WifiOff className="h-5 w-5 text-slate-400" />
+                      )}
+                    </div>
                     <div>
-                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Not yet connected</p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        Enter your WhatsApp Business phone number below. Our team will set up the connection for you.
+                      <p className="text-base font-semibold">WhatsApp Business</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {business?.whatsapp_connected
+                          ? "Connected and receiving messages"
+                          : "Connect your number to start receiving messages"}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <div className="relative flex-1">
-                      <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        className="pl-9"
-                        placeholder="+234 801 234 5678"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={connectWhatsApp} disabled={connectingWa || !phoneNumber}>
-                      {connectingWa ? "Sending..." : "Connect Number"}
-                    </Button>
-                  </div>
-                  {waMsg && (
-                    <motion.p
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      className="text-sm text-emerald-600 flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" /> {waMsg}
-                    </motion.p>
-                  )}
+                  <Badge variant={business?.whatsapp_connected ? "success" : "secondary"} className="shrink-0">
+                    {business?.whatsapp_connected ? "Live" : "Not connected"}
+                  </Badge>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
 
-        {/* ── Auto-Pilot Toggle ── */}
-        <FadeIn delay={0.05}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                  isAutoPilot ? "bg-emerald-500/10" : "bg-slate-200 dark:bg-slate-800"
-                }`}>
-                  <Bot className={`h-4 w-4 ${isAutoPilot ? "text-emerald-600" : "text-muted-foreground"}`} />
-                </div>
-                <div className="flex-1">
-                  <CardTitle>Auto-Pilot</CardTitle>
-                  <CardDescription>
-                    {isAutoPilot
-                      ? "AI is handling customer messages automatically"
-                      : "Only human agents are replying to customers"
-                    }
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Main toggle */}
-              <div className="flex items-center justify-between rounded-xl border-2 p-5">
-                <div className="flex items-center gap-4">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
-                    isAutoPilot ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-muted"
-                  }`}>
-                    {isAutoPilot ? (
-                      <Sparkles className="h-6 w-6 text-emerald-600" />
-                    ) : (
-                      <Bot className="h-6 w-6 text-muted-foreground" />
-                    )}
+                {!business?.whatsapp_connected && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-5"
+                  >
+                    <p className="mb-3 text-xs font-medium text-slate-600">
+                      Enter your WhatsApp Business phone number
+                    </p>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          className="pl-10 h-10 bg-white"
+                          placeholder="+234 801 234 5678"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={connectWhatsApp} disabled={connectingWa || !phoneNumber}>
+                        {connectingWa ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        ) : (
+                          "Connect"
+                        )}
+                      </Button>
+                    </div>
+                    <p className="mt-3 text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <Shield className="h-3 w-3" />
+                      Our team will verify and set up the connection within 24 hours
+                    </p>
+                  </motion.div>
+                )}
+
+                {waMsg && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <p className="text-sm text-emerald-700">{waMsg}</p>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </FadeIn>
+
+          {/* ── Business Configuration ── */}
+          <FadeIn delay={0.05}>
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                    <Store className="h-4 w-4 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold">
-                      {isAutoPilot ? "Auto-Pilot is ON" : "Auto-Pilot is OFF"}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {isAutoPilot
-                        ? "AI + rules handle messages. You can take over any chat manually."
-                        : "Only you and your team are responding. Turn on to let AI help."
-                      }
-                    </p>
+                    <CardTitle className="text-sm">Business Profile</CardTitle>
+                    <CardDescription className="text-xs">Type and category for tailored AI responses</CardDescription>
                   </div>
                 </div>
-                <button
-                  onClick={async () => {
-                    const newVal = !business?.human_only_mode;
-                    await api.patch("/business/me", { human_only_mode: newVal });
-                    setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
-                  }}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                    isAutoPilot ? "bg-emerald-500" : "bg-muted-foreground/30"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      isAutoPilot ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* What auto-pilot does */}
-              {isAutoPilot && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="rounded-lg bg-muted/50 p-4 space-y-2"
-                >
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">How it works</p>
-                  <div className="space-y-1.5 text-sm text-muted-foreground">
-                    <p>1. Customer sends a message on WhatsApp</p>
-                    <p>2. Your <span className="font-medium text-foreground">response rules</span> are checked first (free, instant)</p>
-                    <p>3. If no rule matches, <span className="font-medium text-foreground">AI generates</span> a smart reply</p>
-                    <p>4. You can take over any chat anytime by switching it to manual</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Business Type</label>
+                    <select
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-shadow"
+                      value={business?.business_type || "product"}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        await api.patch("/business/me", {
+                          business_type: val,
+                          booking_enabled: val === "service" || val === "hybrid",
+                        });
+                        setBusiness((b) => b ? { ...b, business_type: val } : b);
+                      }}
+                    >
+                      <option value="product">Product / Sales</option>
+                      <option value="service">Service / Bookings</option>
+                      <option value="hybrid">Both (Hybrid)</option>
+                    </select>
                   </div>
-                </motion.div>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Category</label>
+                    <select
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-shadow"
+                      value={business?.category || "other"}
+                      onChange={async (e) => {
+                        await api.patch("/business/me", { category: e.target.value });
+                        setBusiness((b) => b ? { ...b, category: e.target.value } : b);
+                      }}
+                    >
+                      <option value="retail">Retail / General Store</option>
+                      <option value="restaurant">Restaurant / Food</option>
+                      <option value="salon">Salon / Beauty</option>
+                      <option value="spa">Spa / Wellness</option>
+                      <option value="clinic">Clinic / Healthcare</option>
+                      <option value="logistics">Logistics / Delivery</option>
+                      <option value="consulting">Consulting / Professional</option>
+                      <option value="fashion">Fashion / Clothing</option>
+                      <option value="electronics">Electronics / Tech</option>
+                      <option value="grocery">Grocery / Supermarket</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
 
-        {/* ── Business Type & Category ── */}
-        <FadeIn delay={0.1}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
-                  <Store className="h-4 w-4 text-blue-600" />
+          {/* ── Response Rules ── */}
+          <FadeIn delay={0.1}>
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                    <Zap className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm">Response Rules</CardTitle>
+                    <CardDescription className="text-xs">Instant replies for common questions — free, checked before AI</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>Business Type</CardTitle>
-                  <CardDescription>This controls which features are shown in your dashboard</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Type</label>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={business?.business_type || "product"}
-                    onChange={async (e) => {
-                      const val = e.target.value;
-                      await api.patch("/business/me", {
-                        business_type: val,
-                        booking_enabled: val === "service" || val === "hybrid",
-                      });
-                      setBusiness((b) => b ? { ...b, business_type: val } : b);
-                    }}
-                  >
-                    <option value="product">Product / Sales</option>
-                    <option value="service">Service / Bookings</option>
-                    <option value="hybrid">Both (Hybrid)</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Category</label>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={business?.category || "other"}
-                    onChange={async (e) => {
-                      await api.patch("/business/me", { category: e.target.value });
-                      setBusiness((b) => b ? { ...b, category: e.target.value } : b);
-                    }}
-                  >
-                    <option value="retail">Retail / General Store</option>
-                    <option value="restaurant">Restaurant / Food</option>
-                    <option value="salon">Salon / Beauty</option>
-                    <option value="spa">Spa / Wellness</option>
-                    <option value="clinic">Clinic / Healthcare</option>
-                    <option value="logistics">Logistics / Delivery</option>
-                    <option value="consulting">Consulting / Professional</option>
-                    <option value="fashion">Fashion / Clothing</option>
-                    <option value="electronics">Electronics / Tech</option>
-                    <option value="grocery">Grocery / Supermarket</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Product businesses see Orders. Service businesses see Appointments. Hybrid sees both.
-              </p>
-            </CardContent>
-          </Card>
-        </FadeIn>
-
-        {/* ── Business Hours ── */}
-        <FadeIn delay={0.15}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
-                  <Clock className="h-4 w-4 text-violet-600" />
-                </div>
-                <div>
-                  <CardTitle>Business Hours</CardTitle>
-                  <CardDescription>Control what happens when you're closed</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {/* Outside hours auto-reply toggle */}
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <p className="text-sm font-medium">Auto-Reply When Closed</p>
-                  <p className="text-xs text-muted-foreground">Send a message when customers text outside business hours</p>
-                </div>
-                <button
-                  onClick={async () => {
-                    const newVal = !business?.auto_reply_outside_hours;
-                    await api.patch("/business/me", { auto_reply_outside_hours: newVal });
-                    setBusiness((b) => b ? { ...b, auto_reply_outside_hours: newVal } : b);
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    business?.auto_reply_outside_hours ? "bg-primary" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      business?.auto_reply_outside_hours ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Outside hours message */}
-              {business?.auto_reply_outside_hours && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="space-y-1.5"
-                >
-                  <label className="text-sm font-medium">Closed Hours Message</label>
-                  <Textarea
-                    placeholder="Thanks for reaching out! We're currently closed. We'll get back to you when we open."
-                    value={business?.outside_hours_message || ""}
-                    rows={2}
-                    onChange={(e) => setBusiness((b) => b ? { ...b, outside_hours_message: e.target.value } : b)}
-                    onBlur={async (e) => {
-                      await api.patch("/business/me", { outside_hours_message: e.target.value });
-                    }}
-                  />
-                </motion.div>
-              )}
-
-              <p className="text-xs text-muted-foreground">
-                Timezone: {business?.timezone || "Africa/Lagos"}. Contact support to update your business hours schedule.
-              </p>
-            </CardContent>
-          </Card>
-        </FadeIn>
-
-        {/* ── Auto-Response Rules ── */}
-        <FadeIn delay={0.2}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Zap className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <CardTitle>Response Rules</CardTitle>
-                  <CardDescription>Instant replies for common questions — free, no AI cost. These are checked before AI.</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {rules.length > 0 && (
-                <div className="space-y-3">
-                  {rules.map((rule) => (
-                    <div key={rule.id} className="group rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="capitalize">{rule.category}</Badge>
-                            <span className="text-xs text-muted-foreground">
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {rules.length > 0 && (
+                  <div className="space-y-2">
+                    {rules.map((rule) => (
+                      <div key={rule.id} className="group rounded-lg border bg-muted/30 p-3 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] capitalize">{rule.category}</Badge>
                               {rule.keywords.map((k) => (
-                                <span key={k} className="mr-1.5 inline-block rounded bg-muted px-1.5 py-0.5">{k}</span>
+                                <span key={k} className="text-[10px] rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground">{k}</span>
                               ))}
-                            </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{rule.response_text}</p>
                           </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{rule.response_text}</p>
+                          <button
+                            onClick={() => deleteRule(rule.id)}
+                            className="ml-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="rounded-xl border-2 border-dashed p-4 space-y-3">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5 text-primary" /> Add Rule
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input className="h-9 text-sm" placeholder="Category (pricing, delivery)" value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} />
+                    <Input className="h-9 text-sm" placeholder="Keywords (comma-separated)" value={ruleKeywords} onChange={(e) => setRuleKeywords(e.target.value)} />
+                  </div>
+                  <Textarea className="text-sm" placeholder="Reply text..." value={ruleResponse} onChange={(e) => setRuleResponse(e.target.value)} rows={2} />
+                  <Button size="sm" onClick={addRule} disabled={!ruleCategory || !ruleKeywords || !ruleResponse}>
+                    <Plus className="h-3.5 w-3.5" /> Add Rule
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
+        </div>
+
+        {/* ── Right Column — Quick Toggles ── */}
+        <div className="space-y-4">
+          {/* Auto-Pilot Toggle */}
+          <FadeIn delay={0.05}>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                      isAutoPilot ? "bg-emerald-500 shadow-lg shadow-emerald-500/20" : "bg-muted"
+                    }`}>
+                      <Bot className={`h-5 w-5 ${isAutoPilot ? "text-white" : "text-muted-foreground"}`} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Auto-Pilot</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isAutoPilot ? "AI is replying" : "Manual mode"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newVal = !business?.human_only_mode;
+                      await api.patch("/business/me", { human_only_mode: newVal });
+                      setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      isAutoPilot ? "bg-emerald-500" : "bg-muted-foreground/30"
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      isAutoPilot ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
+
+          {/* Business Hours */}
+          <FadeIn delay={0.1}>
+            <Card>
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
+                      <Clock className="h-5 w-5 text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">After Hours Reply</p>
+                      <p className="text-[11px] text-muted-foreground">Auto-message when closed</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newVal = !business?.auto_reply_outside_hours;
+                      await api.patch("/business/me", { auto_reply_outside_hours: newVal });
+                      setBusiness((b) => b ? { ...b, auto_reply_outside_hours: newVal } : b);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      business?.auto_reply_outside_hours ? "bg-primary" : "bg-muted-foreground/30"
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      business?.auto_reply_outside_hours ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                  </button>
+                </div>
+
+                <AnimatePresence>
+                  {business?.auto_reply_outside_hours && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <Textarea
+                        className="text-sm"
+                        placeholder="We're currently closed. We'll get back to you soon!"
+                        value={business?.outside_hours_message || ""}
+                        rows={2}
+                        onChange={(e) => setBusiness((b) => b ? { ...b, outside_hours_message: e.target.value } : b)}
+                        onBlur={async (e) => {
+                          await api.patch("/business/me", { outside_hours_message: e.target.value });
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+          </FadeIn>
+
+          {/* How It Works */}
+          <FadeIn delay={0.15}>
+            <Card className="border-primary/10 bg-gradient-to-br from-primary/[0.03] to-transparent">
+              <CardContent className="p-5">
+                <p className="text-xs font-semibold text-primary mb-3">How replies work</p>
+                <div className="space-y-3">
+                  {[
+                    { step: "1", label: "Customer messages you on WhatsApp" },
+                    { step: "2", label: "Response rules checked first (free)" },
+                    { step: "3", label: "No match → AI generates a reply" },
+                    { step: "4", label: "You can take over any chat anytime" },
+                  ].map((item) => (
+                    <div key={item.step} className="flex items-start gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                        {item.step}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed pt-0.5">{item.label}</p>
                     </div>
                   ))}
                 </div>
-              )}
-
-              <div className="rounded-xl border-2 border-dashed border-border/60 p-5 space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Plus className="h-4 w-4 text-primary" />
-                  Add New Rule
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input placeholder="Category (pricing, delivery, hours)" value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} />
-                  <Input placeholder="Keywords (comma-separated)" value={ruleKeywords} onChange={(e) => setRuleKeywords(e.target.value)} />
-                </div>
-                <Textarea placeholder="Response text — this will be sent when keywords match" value={ruleResponse} onChange={(e) => setRuleResponse(e.target.value)} rows={3} />
-                <Button onClick={addRule} disabled={!ruleCategory || !ruleKeywords || !ruleResponse}>
-                  <Plus className="h-4 w-4" /> Add Rule
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </FadeIn>
+              </CardContent>
+            </Card>
+          </FadeIn>
+        </div>
       </div>
     </PageTransition>
   );

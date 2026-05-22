@@ -7,12 +7,14 @@ interface StatCardProps {
   icon: React.ReactNode;
   label: string;
   value: string | number;
+  subtitle?: string;
   change?: string;
   trend?: "up" | "down" | "neutral";
+  iconBg?: string;
   className?: string;
 }
 
-export function StatCard({ icon, label, value, change, trend, className }: StatCardProps) {
+export function StatCard({ icon, label, value, subtitle, change, trend, iconBg, className }: StatCardProps) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -25,7 +27,10 @@ export function StatCard({ icon, label, value, change, trend, className }: StatC
       <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="relative">
         <div className="flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-lg",
+            iconBg || "bg-primary/10 text-primary"
+          )}>
             {icon}
           </div>
           {change && (
@@ -44,6 +49,9 @@ export function StatCard({ icon, label, value, change, trend, className }: StatC
         <div className="mt-4">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
           <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
+          {subtitle && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+          )}
         </div>
       </div>
     </motion.div>

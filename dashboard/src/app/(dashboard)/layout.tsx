@@ -18,6 +18,8 @@ import {
   Users,
   CreditCard,
   LayoutDashboard,
+  UserCog,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -26,6 +28,21 @@ interface BusinessInfo {
   business_type: string;
   booking_enabled: boolean;
 }
+
+interface UserInfo {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  business_id: string;
+}
+
+// Role-based nav filtering — roles map to allowed hrefs (empty = all allowed)
+const roleAllowedPaths: Record<string, string[] | null> = {
+  viewer: ["/dashboard", "/conversations", "/customers", "/analytics"],
+  agent: ["/dashboard", "/conversations", "/customers", "/orders", "/appointments", "/analytics", "/templates"],
+  // admin and owner see everything
+};
 
 // Base nav items shown for all business types
 const baseNavItems = [
@@ -47,6 +64,8 @@ const serviceNavItems = [
 const commonNavItems = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/templates", label: "Templates", icon: FileText },
+  { href: "/team", label: "Team", icon: UserCog },
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -70,6 +89,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [businessType, setBusinessType] = useState("hybrid"); // default: show all
+  const [userRole, setUserRole] = useState("owner");
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("bf_token");
@@ -77,16 +98,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/login");
       return;
     }
+
+    // Load user info from stored token response
+    try {
+      const userStr = localStorage.getItem("bf_user");
+      if (userStr) {
+        const user = JSON.parse(userStr) as UserInfo;
+        setUserRole(user.role || "owner");
+        setUserName(user.full_name || "");
+      }
+    } catch {}
+
     // Fetch business type to customize nav
     api.get<BusinessInfo>("/business/me")
       .then((biz) => setBusinessType(biz.business_type || "hybrid"))
       .catch(() => {});
   }, [router]);
 
-  const navItems = getNavItems(businessType);
+  const allNavItems = getNavItems(businessType);
+
+  // Filter nav items by role
+  const allowedPaths = roleAllowedPaths[userRole];
+  const navItems = allowedPaths
+    ? allNavItems.filter((item) => allowedPaths.includes(item.href))
+    : allNavItems;
 
   function handleLogout() {
     localStorage.removeItem("bf_token");
+    localStorage.removeItem("bf_user");
     router.push("/login");
   }
 
@@ -184,9 +223,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu className="h-5 w-5 text-muted-foreground" />
           </button>
           <div className="flex-1" />
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-            B
-          </div>
+          <Link
+            href="/profile"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors"
+            title="Profile"
+          >
+            {userName ? userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() : "U"}
+          </Link>
         </header>
 
         {/* Content */}

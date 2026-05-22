@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock, Plus, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,13 +34,15 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     const params = filter ? `?status=${filter}` : "";
     api.get<Appointment[]>(`/appointments${params}`)
       .then(setAppointments)
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load appointments", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   async function updateStatus(id: string, status: string) {
@@ -48,7 +51,10 @@ export default function AppointmentsPage() {
       setAppointments((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status } : a))
       );
-    } catch {}
+      showToast("Status updated");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update status", "error");
+    }
   }
 
   if (loading) {

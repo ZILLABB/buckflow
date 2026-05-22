@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Package, Filter } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn, formatAmount, statusColor } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,9 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const { showToast } = useToast();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadOrders(); }, [filter]);
 
   async function loadOrders() {
@@ -45,20 +48,22 @@ export default function OrdersPage() {
     try {
       const params = filter ? `?status=${filter}` : "";
       setOrders(await api.get<Order[]>(`/orders${params}`));
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) {
+      showToast(err.message || "Failed to load orders", "error");
+    } finally { setLoading(false); }
   }
 
   async function updateStatus(orderId: string, status: string) {
     setActionLoading(orderId);
-    try { await api.patch(`/orders/${orderId}/status`, { status }); await loadOrders(); }
-    catch (err: any) { alert(err.message); }
+    try { await api.patch(`/orders/${orderId}/status`, { status }); await loadOrders(); showToast("Order status updated"); }
+    catch (err: any) { showToast(err.message || "Failed to update order", "error"); }
     finally { setActionLoading(null); }
   }
 
   async function cancelOrder(orderId: string) {
     setActionLoading(orderId);
-    try { await api.post(`/orders/${orderId}/cancel`); await loadOrders(); }
-    catch (err: any) { alert(err.message); }
+    try { await api.post(`/orders/${orderId}/cancel`); await loadOrders(); showToast("Order cancelled"); }
+    catch (err: any) { showToast(err.message || "Failed to cancel order", "error"); }
     finally { setActionLoading(null); }
   }
 

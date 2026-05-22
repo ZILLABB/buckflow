@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Bot, Cpu, UserCheck, Zap, Send } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export default function ConversationDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<string>("ai");
+  const { showToast } = useToast();
 
   const conversationId = params.id as string;
 
@@ -41,8 +43,9 @@ export default function ConversationDetailPage() {
     api
       .get<Message[]>(`/conversations/${conversationId}/messages`)
       .then(setMessages)
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load messages", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
   async function toggleMode() {
@@ -50,7 +53,10 @@ export default function ConversationDetailPage() {
     try {
       await api.patch(`/conversations/${conversationId}/mode`, { mode: newMode });
       setMode(newMode);
-    } catch {}
+      showToast(`Switched to ${newMode === "ai" ? "AI" : "manual"} mode`);
+    } catch (err: any) {
+      showToast(err.message || "Failed to switch mode", "error");
+    }
   }
 
   if (loading) {

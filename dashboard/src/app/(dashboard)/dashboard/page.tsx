@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
@@ -56,6 +57,7 @@ export default function DashboardPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [conversations, setConversations] = useState<RecentConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetches: Promise<any>[] = [
@@ -77,8 +79,9 @@ export default function DashboardPage() {
             .catch(() => {});
         }
       })
-      .catch(() => {})
+      .catch((err) => showToast(err.message || "Failed to load dashboard", "error"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
