@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Link2, Plus, Trash2, Zap, Clock, Store } from "lucide-react";
+import {
+  CheckCircle2,
+  Plus,
+  Zap,
+  Clock,
+  Store,
+  MessageCircle,
+  Bot,
+  Phone,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,13 +52,12 @@ export default function SettingsPage() {
   const [business, setBusiness] = useState<Business | null>(null);
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [waPhoneId, setWaPhoneId] = useState("");
-  const [waToken, setWaToken] = useState("");
   const [ruleCategory, setRuleCategory] = useState("");
   const [ruleKeywords, setRuleKeywords] = useState("");
   const [ruleResponse, setRuleResponse] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [connectingWa, setConnectingWa] = useState(false);
+  const [waMsg, setWaMsg] = useState("");
 
   useEffect(() => {
     Promise.all([api.get<Business>("/business/me"), api.get<Rule[]>("/business/rules")])
@@ -56,14 +66,19 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function saveWhatsApp() {
-    setSaving(true); setMsg("");
+  async function connectWhatsApp() {
+    if (!phoneNumber) return;
+    setConnectingWa(true);
+    setWaMsg("");
     try {
-      await api.patch("/business/me", { whatsapp_phone_number_id: waPhoneId, whatsapp_api_token: waToken });
-      setMsg("WhatsApp settings saved!");
-      setBusiness((b) => (b ? { ...b, whatsapp_connected: true } : b));
-    } catch (err: any) { setMsg(err.message); }
-    finally { setSaving(false); }
+      await api.post("/business/connect-whatsapp", { phone_number: phoneNumber });
+      setWaMsg("Request sent! Our team will connect your number within 24 hours.");
+      setBusiness((b) => b ? { ...b, whatsapp_connected: false } : b);
+    } catch (err: any) {
+      setWaMsg(err.message || "Something went wrong");
+    } finally {
+      setConnectingWa(false);
+    }
   }
 
   async function addRule() {
@@ -87,50 +102,177 @@ export default function SettingsPage() {
     );
   }
 
+  const isAutoPilot = !business?.human_only_mode;
+
   return (
     <PageTransition>
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Configure your business, WhatsApp, and automation rules</p>
+        <p className="mt-1 text-sm text-muted-foreground">Configure your business and how AI handles your customers</p>
       </div>
 
       <div className="space-y-6">
-        {/* Business info */}
+
+        {/* ── WhatsApp Connection Status ── */}
         <FadeIn>
-          <Card>
+          <Card className={business?.whatsapp_connected ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20" : ""}>
             <CardHeader>
-              <CardTitle>Business Profile</CardTitle>
-              <CardDescription>Your business details</CardDescription>
+              <div className="flex items-center gap-3">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                  business?.whatsapp_connected ? "bg-emerald-500/10" : "bg-amber-500/10"
+                }`}>
+                  <MessageCircle className={`h-4 w-4 ${
+                    business?.whatsapp_connected ? "text-emerald-600" : "text-amber-600"
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <CardTitle>WhatsApp</CardTitle>
+                  <CardDescription>
+                    {business?.whatsapp_connected
+                      ? "Your WhatsApp number is connected and receiving messages"
+                      : "Connect your WhatsApp number to start receiving customer messages"
+                    }
+                  </CardDescription>
+                </div>
+                <Badge variant={business?.whatsapp_connected ? "success" : "outline"}>
+                  {business?.whatsapp_connected ? "Connected" : "Pending"}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Name</p>
-                  <p className="mt-1 font-semibold">{business?.name || "—"}</p>
+              {business?.whatsapp_connected ? (
+                <div className="flex items-center gap-3 rounded-lg bg-emerald-100/50 dark:bg-emerald-900/20 p-4">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">WhatsApp is active</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Customer messages are being received and processed</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Slug</p>
-                  <p className="mt-1 font-mono text-sm text-muted-foreground">{business?.slug || "—"}</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 p-4">
+                    <AlertCircle className="mt-0.5 h-4 w-4 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Not yet connected</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Enter your WhatsApp Business phone number below. Our team will set up the connection for you.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        placeholder="+234 801 234 5678"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={connectWhatsApp} disabled={connectingWa || !phoneNumber}>
+                      {connectingWa ? "Sending..." : "Connect Number"}
+                    </Button>
+                  </div>
+                  {waMsg && (
+                    <motion.p
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      className="text-sm text-emerald-600 flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" /> {waMsg}
+                    </motion.p>
+                  )}
                 </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">WhatsApp</p>
-                  <Badge variant={business?.whatsapp_connected ? "success" : "destructive"} className="mt-1">
-                    {business?.whatsapp_connected ? "Connected" : "Not Connected"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">AI Engine</p>
-                  <Badge variant={business?.ai_enabled ? "success" : "secondary"} className="mt-1">
-                    {business?.ai_enabled ? "Enabled" : "Disabled"}
-                  </Badge>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </FadeIn>
 
-        {/* Business Type & Category */}
+        {/* ── Auto-Pilot Toggle ── */}
         <FadeIn delay={0.05}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                  isAutoPilot ? "bg-emerald-500/10" : "bg-slate-200 dark:bg-slate-800"
+                }`}>
+                  <Bot className={`h-4 w-4 ${isAutoPilot ? "text-emerald-600" : "text-muted-foreground"}`} />
+                </div>
+                <div className="flex-1">
+                  <CardTitle>Auto-Pilot</CardTitle>
+                  <CardDescription>
+                    {isAutoPilot
+                      ? "AI is handling customer messages automatically"
+                      : "Only human agents are replying to customers"
+                    }
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Main toggle */}
+              <div className="flex items-center justify-between rounded-xl border-2 p-5">
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                    isAutoPilot ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-muted"
+                  }`}>
+                    {isAutoPilot ? (
+                      <Sparkles className="h-6 w-6 text-emerald-600" />
+                    ) : (
+                      <Bot className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-semibold">
+                      {isAutoPilot ? "Auto-Pilot is ON" : "Auto-Pilot is OFF"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {isAutoPilot
+                        ? "AI + rules handle messages. You can take over any chat manually."
+                        : "Only you and your team are responding. Turn on to let AI help."
+                      }
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    const newVal = !business?.human_only_mode;
+                    await api.patch("/business/me", { human_only_mode: newVal });
+                    setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
+                  }}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                    isAutoPilot ? "bg-emerald-500" : "bg-muted-foreground/30"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      isAutoPilot ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* What auto-pilot does */}
+              {isAutoPilot && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="rounded-lg bg-muted/50 p-4 space-y-2"
+                >
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">How it works</p>
+                  <div className="space-y-1.5 text-sm text-muted-foreground">
+                    <p>1. Customer sends a message on WhatsApp</p>
+                    <p>2. Your <span className="font-medium text-foreground">response rules</span> are checked first (free, instant)</p>
+                    <p>3. If no rule matches, <span className="font-medium text-foreground">AI generates</span> a smart reply</p>
+                    <p>4. You can take over any chat anytime by switching it to manual</p>
+                  </div>
+                </motion.div>
+              )}
+            </CardContent>
+          </Card>
+        </FadeIn>
+
+        {/* ── Business Type & Category ── */}
+        <FadeIn delay={0.1}>
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -195,47 +337,7 @@ export default function SettingsPage() {
           </Card>
         </FadeIn>
 
-        {/* WhatsApp */}
-        <FadeIn delay={0.1}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-                  <Link2 className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div>
-                  <CardTitle>WhatsApp Connection</CardTitle>
-                  <CardDescription>Connect your Meta WhatsApp Business API — this is optional and can be done later</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Phone Number ID</label>
-                <Input placeholder="From Meta Business Dashboard" value={waPhoneId} onChange={(e) => setWaPhoneId(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">API Token</label>
-                <Input type="password" placeholder="Your WhatsApp API token" value={waToken} onChange={(e) => setWaToken(e.target.value)} />
-              </div>
-              <div className="flex items-center gap-3">
-                <Button onClick={saveWhatsApp} disabled={saving || !waPhoneId || !waToken}>
-                  {saving ? "Saving..." : "Save Connection"}
-                </Button>
-                {msg && (
-                  <motion.span
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    className="flex items-center gap-1.5 text-sm text-emerald-600"
-                  >
-                    <CheckCircle2 className="h-4 w-4" /> {msg}
-                  </motion.span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </FadeIn>
-
-        {/* Automation Controls */}
+        {/* ── Business Hours ── */}
         <FadeIn delay={0.15}>
           <Card>
             <CardHeader>
@@ -244,40 +346,16 @@ export default function SettingsPage() {
                   <Clock className="h-4 w-4 text-violet-600" />
                 </div>
                 <div>
-                  <CardTitle>Automation & Hours</CardTitle>
-                  <CardDescription>Control when AI responds and set business hours</CardDescription>
+                  <CardTitle>Business Hours</CardTitle>
+                  <CardDescription>Control what happens when you're closed</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Human-only toggle */}
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <p className="text-sm font-medium">Human-Only Mode</p>
-                  <p className="text-xs text-muted-foreground">Turn off all AI responses — only human agents reply</p>
-                </div>
-                <button
-                  onClick={async () => {
-                    const newVal = !business?.human_only_mode;
-                    await api.patch("/business/me", { human_only_mode: newVal });
-                    setBusiness((b) => b ? { ...b, human_only_mode: newVal } : b);
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    business?.human_only_mode ? "bg-amber-500" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      business?.human_only_mode ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
               {/* Outside hours auto-reply toggle */}
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="text-sm font-medium">Auto-Reply Outside Hours</p>
+                  <p className="text-sm font-medium">Auto-Reply When Closed</p>
                   <p className="text-xs text-muted-foreground">Send a message when customers text outside business hours</p>
                 </div>
                 <button
@@ -300,10 +378,14 @@ export default function SettingsPage() {
 
               {/* Outside hours message */}
               {business?.auto_reply_outside_hours && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Outside Hours Message</label>
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="space-y-1.5"
+                >
+                  <label className="text-sm font-medium">Closed Hours Message</label>
                   <Textarea
-                    placeholder="Thanks for reaching out! We're currently closed..."
+                    placeholder="Thanks for reaching out! We're currently closed. We'll get back to you when we open."
                     value={business?.outside_hours_message || ""}
                     rows={2}
                     onChange={(e) => setBusiness((b) => b ? { ...b, outside_hours_message: e.target.value } : b)}
@@ -311,17 +393,17 @@ export default function SettingsPage() {
                       await api.patch("/business/me", { outside_hours_message: e.target.value });
                     }}
                   />
-                </div>
+                </motion.div>
               )}
 
               <p className="text-xs text-muted-foreground">
-                Business hours can be set per day. The system uses your timezone ({business?.timezone || "Africa/Lagos"}) to determine open/closed status.
+                Timezone: {business?.timezone || "Africa/Lagos"}. Contact support to update your business hours schedule.
               </p>
             </CardContent>
           </Card>
         </FadeIn>
 
-        {/* Rules */}
+        {/* ── Auto-Response Rules ── */}
         <FadeIn delay={0.2}>
           <Card>
             <CardHeader>
@@ -330,8 +412,8 @@ export default function SettingsPage() {
                   <Zap className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <CardTitle>Auto-Response Rules</CardTitle>
-                  <CardDescription>Free responses — no AI cost. Rules are checked before AI.</CardDescription>
+                  <CardTitle>Response Rules</CardTitle>
+                  <CardDescription>Instant replies for common questions — free, no AI cost. These are checked before AI.</CardDescription>
                 </div>
               </div>
             </CardHeader>

@@ -304,6 +304,8 @@ class BusinessUpdateAdmin(BaseModel):
     ai_enabled: bool | None = None
     monthly_ai_limit: int | None = None
     monthly_conversation_limit: int | None = None
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_api_token: str | None = None
 
 
 @router.patch("/businesses/{business_id}")
@@ -318,8 +320,17 @@ async def update_business_admin(
     if not biz:
         raise HTTPException(status_code=404, detail="Business not found")
 
-    for field, val in data.model_dump(exclude_none=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
         setattr(biz, field, val)
+
+    # Auto-set whatsapp_verified when admin assigns API credentials
+    if "whatsapp_phone_number_id" in update_data and "whatsapp_api_token" in update_data:
+        if update_data["whatsapp_phone_number_id"] and update_data["whatsapp_api_token"]:
+            biz.whatsapp_verified = True
+        else:
+            biz.whatsapp_verified = False
+
     await db.flush()
 
     return {"status": "updated"}

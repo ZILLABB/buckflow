@@ -17,20 +17,20 @@ router = APIRouter(prefix="/business", tags=["business"])
 class BusinessUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    whatsapp_phone_number_id: str | None = None
-    whatsapp_api_token: str | None = None
     ai_system_prompt: str | None = None
-    ai_enabled: bool | None = None
-    # New fields
+    # Business type & category
     business_type: str | None = None
     category: str | None = None
+    # Operating hours & automation
     operating_hours: dict | None = None
     timezone: str | None = None
     auto_reply_outside_hours: bool | None = None
     outside_hours_message: str | None = None
+    # Booking settings
     booking_enabled: bool | None = None
     booking_lead_time_hours: int | None = None
     booking_slot_duration_mins: int | None = None
+    # Auto-pilot (human_only_mode = !autopilot)
     human_only_mode: bool | None = None
 
 
@@ -104,11 +104,39 @@ async def update_business(
     for field, value in update_data.items():
         setattr(biz, field, value)
 
-    if data.whatsapp_phone_number_id and data.whatsapp_api_token:
-        biz.whatsapp_verified = True
-
     await db.flush()
     return {"status": "updated"}
+
+
+class ConnectWhatsAppRequest(BaseModel):
+    phone_number: str
+
+
+@router.post("/connect-whatsapp")
+async def request_whatsapp_connection(
+    data: ConnectWhatsAppRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Business requests WhatsApp connection.
+    Stores their phone number — super admin will connect it from the admin panel.
+    """
+    result = await db.execute(
+        select(Business).where(Business.id == user.business_id)
+    )
+    biz = result.scalar_one_or_none()
+    if not biz:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    # Store the phone number for admin to process
+    biz.phone = data.phone_number
+    await db.flush()
+
+    return {
+        "status": "pending",
+        "message": "Connection request received. Your number will be connected within 24 hours.",
+    }
 
 
 @router.post("/rules")

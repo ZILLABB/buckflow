@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Building2, Users, MessageSquare, Package, TrendingUp, Bot, Wifi } from "lucide-react";
+import { ArrowLeft, Building2, Users, MessageSquare, Package, TrendingUp, Bot, Wifi, Phone, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatAmount, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,10 @@ export default function BusinessDetailPage() {
   const [aiLimit, setAiLimit] = useState("");
   const [convLimit, setConvLimit] = useState("");
   const [saving, setSaving] = useState(false);
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
+  const [waApiToken, setWaApiToken] = useState("");
+  const [savingWa, setSavingWa] = useState(false);
+  const [waMsg, setWaMsg] = useState("");
 
   useEffect(() => {
     api.get<BusinessDetail>(`/admin/businesses/${params.id}`)
@@ -181,6 +185,107 @@ export default function BusinessDetailPage() {
           </Card>
         </FadeIn>
       </div>
+
+      {/* WhatsApp Management — Super Admin only */}
+      <FadeIn delay={0.3}>
+        <Card className="mb-8">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Phone className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div>
+                  <CardTitle>WhatsApp Connection</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Assign Meta WhatsApp Business API credentials to this business
+                  </p>
+                </div>
+              </div>
+              <Badge variant={biz.whatsapp_connected ? "success" : "outline"}>
+                {biz.whatsapp_connected ? "Connected" : "Not Connected"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {biz.phone && (
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3">
+                <Phone className="h-4 w-4 text-blue-600" />
+                <p className="text-sm">
+                  <span className="font-medium">Requested number:</span>{" "}
+                  <span className="font-mono">{biz.phone}</span>
+                </p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Phone Number ID</label>
+              <Input
+                placeholder="Meta Phone Number ID for this business"
+                value={waPhoneNumberId}
+                onChange={(e) => setWaPhoneNumberId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">API Token</label>
+              <Input
+                type="password"
+                placeholder="WhatsApp Business API token"
+                value={waApiToken}
+                onChange={(e) => setWaApiToken(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={async () => {
+                  if (!waPhoneNumberId || !waApiToken) return;
+                  setSavingWa(true);
+                  setWaMsg("");
+                  try {
+                    await api.patch(`/admin/businesses/${params.id}`, {
+                      whatsapp_phone_number_id: waPhoneNumberId,
+                      whatsapp_api_token: waApiToken,
+                    });
+                    setWaMsg("WhatsApp connected successfully!");
+                    setBiz((b) => b ? { ...b, whatsapp_connected: true } : b);
+                  } catch (err: any) {
+                    setWaMsg(err.message || "Failed to connect");
+                  } finally {
+                    setSavingWa(false);
+                  }
+                }}
+                disabled={savingWa || !waPhoneNumberId || !waApiToken}
+                size="sm"
+              >
+                {savingWa ? "Connecting..." : "Connect WhatsApp"}
+              </Button>
+              {biz.whatsapp_connected && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    await api.patch(`/admin/businesses/${params.id}`, {
+                      whatsapp_phone_number_id: null,
+                      whatsapp_api_token: null,
+                    });
+                    setBiz((b) => b ? { ...b, whatsapp_connected: false } : b);
+                    setWaMsg("Disconnected.");
+                  }}
+                >
+                  Disconnect
+                </Button>
+              )}
+              {waMsg && (
+                <span className="flex items-center gap-1.5 text-sm text-emerald-600">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> {waMsg}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Enter the Meta Business API credentials. This will allow this business to send and receive WhatsApp messages through BuckFlow.
+            </p>
+          </CardContent>
+        </Card>
+      </FadeIn>
     </PageTransition>
   );
 }
