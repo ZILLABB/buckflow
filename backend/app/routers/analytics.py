@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.middleware.auth import get_current_user
+from app.models.conversion import ConversionEvent, ConversionType
 from app.models.conversation import Conversation
 from app.models.customer import Customer
 from app.models.message import Message, ResponseSource
@@ -127,4 +128,56 @@ async def response_breakdown(
         "ai_premium": row[2],
         "cache": row[3],
         "human": row[4],
+    }
+
+
+@router.get("/conversions")
+async def conversion_analytics(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Conversion & revenue analytics for the business."""
+    biz = user.business_id
+
+    total_conversations = await db.scalar(
+        select(func.count(Conversation.id)).where(Conversation.business_id == biz)
+    ) or 0
+
+    total_conversions = await db.scalar(
+        select(func.count(ConversionEvent.id)).where(ConversionEvent.business_id == biz)
+    ) or 0
+
+    order_conversions = await db.scalar(
+        select(func.count(ConversionEvent.id)).where(
+            ConversionEvent.business_id == biz,
+            ConversionEvent.conversion_type == ConversionType.ORDER,
+        )
+    ) or 0
+
+    booking_conversions = await db.scalar(
+        select(func.count(ConversionEvent.id)).where(
+            ConversionEvent.business_id == biz,
+            ConversionEvent.conversion_type == ConversionType.BOOKING,
+        )
+    ) or 0
+
+    total_revenue = await db.scalar(
+        select(func.coalesce(func.sum(ConversionEvent.revenue_amount), 0)).where(
+            ConversionEvent.business_id == biz
+        )
+    ) or 0
+
+    conversion_rate = (
+        round((total_conversions / total_conversations) * 100, 1)
+        if total_conversations > 0
+        else 0
+    )
+
+    return {
+        "total_conversations": total_conversations,
+        "total_conversions": total_conversions,
+        "order_conversions": order_conversions,
+        "booking_conversions": booking_conversions,
+        "conversion_rate": conversion_rate,
+        "total_conversion_revenue": total_revenue,
     }

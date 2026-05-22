@@ -28,6 +28,12 @@ class Conversation(UUIDBase):
         Enum(ConversationMode), default=ConversationMode.AI
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    locked_by: Mapped[str | None] = mapped_column(String(150))
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     business: Mapped["Business"] = relationship(back_populates="conversations")

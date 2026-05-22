@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.auth import get_current_user
-from app.models.business import Business
+from app.models.business import Business, BusinessType, BusinessCategory
 from app.models.rule_response import RuleResponse
 from app.models.user import User
 
@@ -21,6 +21,17 @@ class BusinessUpdate(BaseModel):
     whatsapp_api_token: str | None = None
     ai_system_prompt: str | None = None
     ai_enabled: bool | None = None
+    # New fields
+    business_type: str | None = None
+    category: str | None = None
+    operating_hours: dict | None = None
+    timezone: str | None = None
+    auto_reply_outside_hours: bool | None = None
+    outside_hours_message: str | None = None
+    booking_enabled: bool | None = None
+    booking_lead_time_hours: int | None = None
+    booking_slot_duration_mins: int | None = None
+    human_only_mode: bool | None = None
 
 
 class RuleCreate(BaseModel):
@@ -50,6 +61,16 @@ async def get_my_business(
         "description": biz.description,
         "whatsapp_connected": biz.whatsapp_verified,
         "ai_enabled": biz.ai_enabled,
+        "business_type": biz.business_type.value,
+        "category": biz.category.value,
+        "operating_hours": biz.operating_hours,
+        "timezone": biz.timezone,
+        "auto_reply_outside_hours": biz.auto_reply_outside_hours,
+        "outside_hours_message": biz.outside_hours_message,
+        "booking_enabled": biz.booking_enabled,
+        "booking_lead_time_hours": biz.booking_lead_time_hours,
+        "booking_slot_duration_mins": biz.booking_slot_duration_mins,
+        "human_only_mode": biz.human_only_mode,
     }
 
 
@@ -66,7 +87,21 @@ async def update_business(
     if not biz:
         raise HTTPException(status_code=404, detail="Business not found")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+
+    # Validate enum fields
+    if "business_type" in update_data:
+        try:
+            update_data["business_type"] = BusinessType(update_data["business_type"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid business_type")
+    if "category" in update_data:
+        try:
+            update_data["category"] = BusinessCategory(update_data["category"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid category")
+
+    for field, value in update_data.items():
         setattr(biz, field, value)
 
     if data.whatsapp_phone_number_id and data.whatsapp_api_token:

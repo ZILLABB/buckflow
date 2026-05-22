@@ -5,7 +5,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import admin, analytics, auth, business, conversations, orders, webhook
+from app.routers import (
+    admin, analytics, appointments, auth, billing,
+    business, conversations, orders, templates, webhook,
+)
 
 settings = get_settings()
 logger = structlog.get_logger()
@@ -39,6 +42,9 @@ app.include_router(business.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(appointments.router, prefix="/api/v1")
+app.include_router(billing.router, prefix="/api/v1")
+app.include_router(templates.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 
 

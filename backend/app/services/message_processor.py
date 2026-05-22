@@ -11,11 +11,12 @@ from app.core.redis import get_redis
 from app.models.ai_request import AIRequest
 from app.models.business import Business
 from app.models.conversation import Conversation, ConversationMode
-from app.models.customer import Customer
+from app.models.customer import Customer, CustomerStatus
 from app.models.message import Message, MessageDirection, MessageType, ResponseSource
 from app.models.usage_log import UsageLog
 from app.rule_engine.engine import RuleEngine
 from app.services.cache_service import CacheService
+from app.services.spam_detector import SpamDetector
 from app.services.usage_limiter import UsageLimiter
 from app.whatsapp.client import WhatsAppClient
 from app.whatsapp.normalizer import NormalizedMessage
@@ -30,6 +31,7 @@ class MessageProcessor:
         self.redis = get_redis()
         self.cache = CacheService(self.redis)
         self.limiter = UsageLimiter(db, self.redis)
+        self.spam_detector = SpamDetector(self.redis)
 
     async def process(self, msg: NormalizedMessage) -> None:
         business = await self._get_business(msg.phone_number_id)
@@ -37,6 +39,7 @@ class MessageProcessor:
             logger.warning("no_business_for_phone", phone_id=msg.phone_number_id)
             return
 
+        # ── Pre-check: Rate limit ──
         if not await self.limiter.check_rate_limit(business.id):
             logger.warning("rate_limited", business_id=str(business.id))
             return
@@ -49,12 +52,69 @@ class MessageProcessor:
         customer = await self._get_or_create_customer(
             business.id, msg.from_number, msg.sender_name
         )
+
+        # ── Guard 1: Customer blocked/blacklisted → store but don't respond ──
+        if customer.status in (CustomerStatus.BLOCKED, CustomerStatus.BLACKLISTED):
+            logger.info("customer_blocked", customer_id=str(customer.id), status=customer.status.value)
+            conversation = await self._get_or_create_conversation(business.id, customer.id)
+            await self._store_inbound(conversation.id, msg)
+            return
+
+        # ── Guard 2: Customer muted → store but don't respond ──
+        if customer.status == CustomerStatus.MUTED:
+            logger.info("customer_muted", customer_id=str(customer.id))
+            conversation = await self._get_or_create_conversation(business.id, customer.id)
+            await self._store_inbound(conversation.id, msg)
+            return
+
+        # ── Guard 3: Spam detection ──
+        if await self.spam_detector.is_muted(str(business.id), msg.from_number):
+            logger.info("spam_auto_muted", customer=msg.from_number)
+            return
+
+        spam_result = await self.spam_detector.check(
+            str(business.id), msg.from_number, msg.text
+        )
+        if spam_result.is_spam:
+            logger.warning("spam_detected", reason=spam_result.reason, action=spam_result.action)
+            if spam_result.action == "mute":
+                await self.spam_detector.mute_customer(str(business.id), msg.from_number, 300)
+                return
+            if spam_result.action == "block":
+                return
+            # "slow" action — continue but log it
+
         conversation = await self._get_or_create_conversation(business.id, customer.id)
         await self._store_inbound(conversation.id, msg)
 
-        if conversation.mode == ConversationMode.HUMAN:
+        # ── Guard 4: Business in human-only mode ──
+        if business.human_only_mode:
+            logger.info("business_human_only", business_id=str(business.id))
+            return
+
+        # ── Guard 5: Conversation locked or in human mode ──
+        if conversation.mode == ConversationMode.HUMAN or conversation.is_locked:
             logger.info("human_mode_active", conversation_id=str(conversation.id))
             return
+
+        # ── Guard 6: AI disabled for this customer ──
+        if not customer.ai_enabled:
+            logger.info("customer_ai_disabled", customer_id=str(customer.id))
+            return
+
+        # ── Guard 7: Business hours check ──
+        if business.auto_reply_outside_hours and business.operating_hours:
+            if not self._is_within_hours(business):
+                if business.outside_hours_message:
+                    wa_client = WhatsAppClient(
+                        phone_number_id=business.whatsapp_phone_number_id,
+                        api_token=business.whatsapp_api_token,
+                    )
+                    await self._send_and_store(
+                        wa_client, conversation.id, msg.from_number,
+                        business.outside_hours_message, ResponseSource.SYSTEM,
+                    )
+                return
 
         wa_client = WhatsAppClient(
             phone_number_id=business.whatsapp_phone_number_id,
@@ -82,8 +142,8 @@ class MessageProcessor:
             await self._update_usage(business.id, ResponseSource.CACHE, 0)
             return
 
-        # Check if AI is allowed
-        if not usage_status.ai_allowed:
+        # Check if AI is allowed (business-level)
+        if not business.ai_enabled or not usage_status.ai_allowed:
             fallback = (
                 "Thank you for your message! Our team will get back to you shortly. "
                 "For quick answers, try asking about our products, prices, or delivery."
@@ -121,6 +181,22 @@ class MessageProcessor:
                 wa_client, conversation.id, msg.from_number,
                 fallback, ResponseSource.SYSTEM,
             )
+
+    def _is_within_hours(self, business: Business) -> bool:
+        """Check if current time is within business operating hours."""
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.now(ZoneInfo(business.timezone or "Africa/Lagos"))
+            day_name = now.strftime("%a").lower()  # mon, tue, etc.
+            hours = business.operating_hours or {}
+            day_hours = hours.get(day_name)
+            if not day_hours:
+                return False  # closed on this day
+            open_time = datetime.strptime(day_hours["open"], "%H:%M").time()
+            close_time = datetime.strptime(day_hours["close"], "%H:%M").time()
+            return open_time <= now.time() <= close_time
+        except Exception:
+            return True  # if anything fails, assume open
 
     async def _get_business(self, phone_number_id: str) -> Business | None:
         stmt = select(Business).where(

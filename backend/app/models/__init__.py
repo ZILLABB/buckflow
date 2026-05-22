@@ -8,6 +8,10 @@ from app.models.subscription import Subscription, Plan
 from app.models.ai_request import AIRequest
 from app.models.rule_response import RuleResponse
 from app.models.usage_log import UsageLog
+from app.models.appointment import Appointment, ServiceItem
+from app.models.conversion import ConversionEvent
+from app.models.mode_change_log import ModeChangeLog
+from app.models.whatsapp_template import WhatsAppTemplate
 
 __all__ = [
     "User",
@@ -23,4 +27,9 @@ __all__ = [
     "AIRequest",
     "RuleResponse",
     "UsageLog",
+    "Appointment",
+    "ServiceItem",
+    "ConversionEvent",
+    "ModeChangeLog",
+    "WhatsAppTemplate",
 ]

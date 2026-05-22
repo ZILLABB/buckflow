@@ -23,6 +23,108 @@ class WhatsAppClient:
         }
         return await self._send(payload)
 
+    async def send_template(
+        self,
+        to: str,
+        template_name: str,
+        language_code: str = "en",
+        components: list[dict] | None = None,
+    ) -> dict | None:
+        """
+        Send a WhatsApp template message.
+
+        Args:
+            to: Recipient phone number
+            template_name: Pre-approved template name
+            language_code: Template language (default: en)
+            components: Template components with parameters
+                Example: [{"type": "body", "parameters": [{"type": "text", "text": "John"}]}]
+        """
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "template",
+            "template": {
+                "name": template_name,
+                "language": {"code": language_code},
+            },
+        }
+        if components:
+            payload["template"]["components"] = components
+        return await self._send(payload)
+
+    async def send_interactive_buttons(
+        self,
+        to: str,
+        body_text: str,
+        buttons: list[dict],
+        header: str | None = None,
+        footer: str | None = None,
+    ) -> dict | None:
+        """
+        Send interactive button message (max 3 buttons).
+
+        Args:
+            buttons: [{"id": "btn_1", "title": "Confirm"}, ...]
+        """
+        action_buttons = [
+            {"type": "reply", "reply": {"id": b["id"], "title": b["title"][:20]}}
+            for b in buttons[:3]
+        ]
+        interactive = {
+            "type": "button",
+            "body": {"text": body_text},
+            "action": {"buttons": action_buttons},
+        }
+        if header:
+            interactive["header"] = {"type": "text", "text": header}
+        if footer:
+            interactive["footer"] = {"text": footer}
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": interactive,
+        }
+        return await self._send(payload)
+
+    async def send_interactive_list(
+        self,
+        to: str,
+        body_text: str,
+        button_text: str,
+        sections: list[dict],
+        header: str | None = None,
+        footer: str | None = None,
+    ) -> dict | None:
+        """
+        Send interactive list message.
+
+        Args:
+            sections: [{"title": "Section", "rows": [{"id": "1", "title": "Option", "description": "..."}]}]
+        """
+        interactive = {
+            "type": "list",
+            "body": {"text": body_text},
+            "action": {"button": button_text, "sections": sections},
+        }
+        if header:
+            interactive["header"] = {"type": "text", "text": header}
+        if footer:
+            interactive["footer"] = {"text": footer}
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": interactive,
+        }
+        return await self._send(payload)
+
     async def mark_as_read(self, message_id: str) -> None:
         payload = {
             "messaging_product": "whatsapp",
