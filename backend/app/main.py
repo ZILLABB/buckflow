@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers import (
     admin, analytics, appointments, auth, billing,
-    business, conversations, orders, templates, webhook,
+    business, conversations, orders, team, templates, webhook,
 )
 
 settings = get_settings()
@@ -44,6 +44,7 @@ app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(appointments.router, prefix="/api/v1")
 app.include_router(billing.router, prefix="/api/v1")
+app.include_router(team.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 

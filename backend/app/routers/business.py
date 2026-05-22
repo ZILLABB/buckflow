@@ -179,3 +179,24 @@ async def list_rules(
         }
         for r in rules
     ]
+
+
+@router.delete("/rules/{rule_id}")
+async def delete_rule(
+    rule_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(RuleResponse).where(
+            RuleResponse.id == rule_id,
+            RuleResponse.business_id == user.business_id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+
+    await db.delete(rule)
+    await db.flush()
+    return {"status": "deleted"}
