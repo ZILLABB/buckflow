@@ -31,26 +31,15 @@ class RuleEngine:
         normalized = text.strip().lower()
         normalized = re.sub(r"[^\w\s]", "", normalized)
 
-        greeting_match = self._check_greeting(normalized)
-        if greeting_match:
-            return greeting_match
+        # Check business-defined rules first (owner can create a custom greeting rule)
+        rule_match = await self._check_business_rules(normalized)
+        if rule_match:
+            return rule_match
 
-        return await self._check_business_rules(normalized)
-
-    def _check_greeting(self, text: str) -> RuleMatch | None:
-        words = set(text.split())
-        if words & BUILTIN_GREETINGS:
-            return RuleMatch(
-                response=(
-                    "Hello! 👋 Welcome! How can I help you today?\n\n"
-                    "You can ask about:\n"
-                    "• Our products & prices\n"
-                    "• Place an order\n"
-                    "• Track your order\n"
-                    "• Delivery information"
-                ),
-                category="greeting",
-            )
+        # No built-in greeting anymore — let the context-aware AI handle
+        # greetings with the business name and personality.
+        # Business owners who want instant greeting responses can add a
+        # rule with keywords like "hello,hi,hey" in their Settings.
         return None
 
     async def _check_business_rules(self, text: str) -> RuleMatch | None:

@@ -271,6 +271,7 @@ class PaystackService:
                 .values(
                     monthly_conversation_limit=plan.conversation_limit,
                     monthly_ai_limit=plan.ai_messages_limit,
+                    ai_model=plan.ai_model,
                 )
             )
 

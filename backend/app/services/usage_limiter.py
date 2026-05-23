@@ -24,6 +24,7 @@ class UsageStatus:
     allowed: bool
     reason: str | None = None
     ai_allowed: bool = True
+    ai_model: str = "gpt-4o-mini"
     model_override: str | None = None
     conversations_used: int = 0
     conversations_limit: int = 0
@@ -56,10 +57,14 @@ class UsageLimiter:
         monthly_convos = monthly_usage.get("conversations", 0)
         monthly_ai = monthly_usage.get("ai_calls", 0)
 
+        # Read the business's assigned AI model
+        biz_model = business.ai_model or "gpt-4o-mini"
+
         if monthly_convos >= conv_limit:
             return UsageStatus(
                 allowed=False,
                 reason="Monthly conversation limit reached",
+                ai_model=biz_model,
                 conversations_used=monthly_convos,
                 conversations_limit=conv_limit,
             )
@@ -68,6 +73,7 @@ class UsageLimiter:
             return UsageStatus(
                 allowed=True,
                 ai_allowed=False,
+                ai_model=biz_model,
                 reason="AI limit reached — rule engine only",
                 ai_used=monthly_ai,
                 ai_limit=ai_limit,
@@ -75,7 +81,7 @@ class UsageLimiter:
                 conversations_limit=conv_limit,
             )
 
-        # If usage is above 80%, downgrade to mini only
+        # If usage is above 80%, downgrade to mini to stretch budget
         model_override = None
         if ai_limit > 0 and monthly_ai / ai_limit > 0.8:
             model_override = "gpt-4o-mini"
@@ -83,6 +89,7 @@ class UsageLimiter:
         return UsageStatus(
             allowed=True,
             ai_allowed=True,
+            ai_model=biz_model,
             model_override=model_override,
             conversations_used=monthly_convos,
             conversations_limit=conv_limit,

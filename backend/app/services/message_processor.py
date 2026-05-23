@@ -16,6 +16,7 @@ from app.models.message import Message, MessageDirection, MessageType, ResponseS
 from app.models.usage_log import UsageLog
 from app.rule_engine.engine import RuleEngine
 from app.services.cache_service import CacheService
+from app.services.context_builder import ContextBuilder
 from app.services.spam_detector import SpamDetector
 from app.services.usage_limiter import UsageLimiter
 from app.whatsapp.client import WhatsAppClient
@@ -30,6 +31,7 @@ class MessageProcessor:
         self.ai_engine = AIEngine()
         self.redis = get_redis()
         self.cache = CacheService(self.redis)
+        self.context_builder = ContextBuilder(db)
         self.limiter = UsageLimiter(db, self.redis)
         self.spam_detector = SpamDetector(self.redis)
 
@@ -47,6 +49,22 @@ class MessageProcessor:
         usage_status = await self.limiter.check(business.id)
         if not usage_status.allowed:
             logger.warning("usage_blocked", reason=usage_status.reason, business_id=str(business.id))
+            # Don't silently drop — send a fallback message
+            customer = await self._get_or_create_customer(
+                business.id, msg.from_number, msg.sender_name
+            )
+            conversation = await self._get_or_create_conversation(business.id, customer.id)
+            await self._store_inbound(conversation.id, msg)
+            wa_client = WhatsAppClient(
+                phone_number_id=business.whatsapp_phone_number_id,
+                api_token=business.whatsapp_api_token,
+            )
+            await self._send_and_store(
+                wa_client, conversation.id, msg.from_number,
+                "Thank you for your message! We've reached our messaging limit for this period. "
+                "A team member will respond to you directly. We appreciate your patience! 🙏",
+                ResponseSource.SYSTEM,
+            )
             return
 
         customer = await self._get_or_create_customer(
@@ -154,22 +172,48 @@ class MessageProcessor:
             )
             return
 
-        # Layer 2: AI (costs money)
-        model = usage_status.model_override or None
+        # ── Layer 2: AI (costs money) ──
+        # Build enriched context with real business data
+        try:
+            system_prompt = await self.context_builder.build_system_prompt(
+                business=business,
+                customer=customer,
+                conversation=conversation,
+            )
+            conversation_history = await self.context_builder.build_conversation_history(
+                conversation_id=conversation.id,
+                limit=10,
+            )
+        except Exception as e:
+            logger.warning("context_build_error", error=str(e))
+            # Fall back to basic prompt if context building fails
+            system_prompt = business.ai_system_prompt
+            conversation_history = None
+
+        # Determine the correct model:
+        # 1. If usage > 80%, force downgrade to mini (budget protection)
+        # 2. Otherwise, use the business's assigned model (from their plan)
+        model = usage_status.model_override or usage_status.ai_model
+
+        # Tag the response source based on model
+        is_premium = model in ("gpt-4o", "gpt-4-turbo")
+        response_source = ResponseSource.AI_PREMIUM if is_premium else ResponseSource.AI_MINI
+
         ai_response = await self.ai_engine.generate(
             user_message=msg.text,
-            system_prompt=business.ai_system_prompt,
+            system_prompt=system_prompt,
+            conversation_history=conversation_history,
             model=model,
         )
 
         if ai_response:
             await self._send_and_store(
                 wa_client, conversation.id, msg.from_number,
-                ai_response.text, ResponseSource.AI_MINI, ai_response.total_tokens,
+                ai_response.text, response_source, ai_response.total_tokens,
             )
             await self._log_ai_request(business.id, conversation.id, ai_response)
             await self._update_usage(
-                business.id, ResponseSource.AI_MINI, ai_response.total_tokens
+                business.id, response_source, ai_response.total_tokens
             )
             await self.cache.cache_response(business.id, msg.text, ai_response.text)
         else:

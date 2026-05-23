@@ -275,6 +275,7 @@ async def get_business_detail(
         "is_active": biz.is_active,
         "ai_enabled": biz.ai_enabled,
         "whatsapp_connected": biz.whatsapp_phone_number_id is not None,
+        "ai_model": biz.ai_model,
         "monthly_ai_limit": biz.monthly_ai_limit,
         "monthly_conversation_limit": biz.monthly_conversation_limit,
         "created_at": biz.created_at.isoformat() if biz.created_at else None,

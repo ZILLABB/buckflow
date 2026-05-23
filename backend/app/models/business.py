@@ -63,6 +63,7 @@ class Business(UUIDBase):
     whatsapp_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     ai_system_prompt: Mapped[str | None] = mapped_column(Text)
+    ai_model: Mapped[str] = mapped_column(String(30), default="gpt-4o-mini")
     ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     human_only_mode: Mapped[bool] = mapped_column(Boolean, default=False)
 
