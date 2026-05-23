@@ -34,6 +34,8 @@ cors_origins = (
     else [
         "https://app.buckflow.ai",
         "https://admin.buckflow.ai",
+        "https://buckflow-frontend.netlify.app",
+        "https://buckflow-admin.netlify.app",
     ]
 )
 

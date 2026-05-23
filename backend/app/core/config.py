@@ -10,6 +10,25 @@ class Settings(BaseSettings):
     database_url: str
     sync_database_url: str = ""
 
+    @property
+    def async_database_url(self) -> str:
+        """Convert standard postgresql:// URL to asyncpg driver URL."""
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
+    def sync_db_url(self) -> str:
+        """Return sync database URL for Alembic migrations."""
+        if self.sync_database_url:
+            return self.sync_database_url
+        # Strip asyncpg driver to get sync URL
+        url = self.database_url
+        if "+asyncpg" in url:
+            return url.replace("+asyncpg", "")
+        return url
+
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
