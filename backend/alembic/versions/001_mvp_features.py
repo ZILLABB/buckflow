@@ -4,12 +4,7 @@ Revision ID: 001_mvp
 Revises: None
 Create Date: 2026-05-21
 
-Creates all 15 base tables from SQLAlchemy models:
-- businesses, users, customers, conversations, messages
-- orders, order_items, order_status_logs
-- plans, subscriptions, ai_requests, rule_responses, usage_logs
-- appointments, service_items
-- conversion_events, mode_change_logs, whatsapp_templates
+Creates all base tables from SQLAlchemy models with native PostgreSQL enum types.
 """
 from typing import Sequence, Union
 
@@ -23,8 +18,38 @@ down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# Import the actual Python enums so the migration stays in sync with models
+from app.models.business import BusinessType, BusinessCategory
+from app.models.user import UserRole
+from app.models.customer import CustomerStatus
+from app.models.conversation import ConversationMode
+from app.models.message import MessageDirection, MessageType, ResponseSource
+from app.models.order import OrderStatus
+from app.models.subscription import PlanTier, SubscriptionStatus
+from app.models.appointment import AppointmentStatus
+from app.models.conversion import ConversionType
+from app.models.whatsapp_template import TemplateCategory
+
+# ── PostgreSQL Enum types (using Python enum classes directly) ──
+businesstype_enum = sa.Enum(BusinessType)
+businesscategory_enum = sa.Enum(BusinessCategory)
+userrole_enum = sa.Enum(UserRole)
+customerstatus_enum = sa.Enum(CustomerStatus)
+conversationmode_enum = sa.Enum(ConversationMode)
+messagedirection_enum = sa.Enum(MessageDirection)
+messagetype_enum = sa.Enum(MessageType)
+responsesource_enum = sa.Enum(ResponseSource)
+orderstatus_enum = sa.Enum(OrderStatus)
+plantier_enum = sa.Enum(PlanTier)
+subscriptionstatus_enum = sa.Enum(SubscriptionStatus)
+appointmentstatus_enum = sa.Enum(AppointmentStatus)
+conversiontype_enum = sa.Enum(ConversionType)
+templatecategory_enum = sa.Enum(TemplateCategory)
+
 
 def upgrade() -> None:
+    # Enum types are created automatically by sa.Enum columns in create_table
+
     # ── Businesses (must be first — users FK to it) ──
     op.create_table(
         "businesses",
@@ -34,32 +59,25 @@ def upgrade() -> None:
         sa.Column("phone", sa.String(20), nullable=True),
         sa.Column("email", sa.String(255), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
-        # Business type & category
-        sa.Column("business_type", sa.String(20), server_default="product", nullable=False),
-        sa.Column("category", sa.String(20), server_default="other", nullable=False),
-        # Operating hours
+        sa.Column("business_type", businesstype_enum, server_default="PRODUCT", nullable=False),
+        sa.Column("category", businesscategory_enum, server_default="OTHER", nullable=False),
         sa.Column("operating_hours", JSON, nullable=True),
         sa.Column("timezone", sa.String(50), server_default="Africa/Lagos", nullable=False),
         sa.Column("auto_reply_outside_hours", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("outside_hours_message", sa.Text(), nullable=True),
-        # Booking settings
         sa.Column("booking_enabled", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("booking_lead_time_hours", sa.Integer(), server_default="24", nullable=False),
         sa.Column("booking_slot_duration_mins", sa.Integer(), server_default="60", nullable=False),
-        # WhatsApp
         sa.Column("whatsapp_phone_number_id", sa.String(50), nullable=True),
         sa.Column("whatsapp_api_token", sa.String(500), nullable=True),
         sa.Column("whatsapp_verified", sa.Boolean(), server_default="false", nullable=False),
-        # AI settings
         sa.Column("ai_system_prompt", sa.Text(), nullable=True),
         sa.Column("ai_model", sa.String(30), server_default="gpt-4o-mini", nullable=False),
         sa.Column("ai_enabled", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("human_only_mode", sa.Boolean(), server_default="false", nullable=False),
-        # Limits
         sa.Column("monthly_ai_limit", sa.Integer(), server_default="500", nullable=False),
         sa.Column("monthly_conversation_limit", sa.Integer(), server_default="1000", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
-        # Timestamps
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -73,7 +91,7 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(150), nullable=False),
         sa.Column("hashed_password", sa.String(255), nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
-        sa.Column("role", sa.String(20), server_default="owner", nullable=False),
+        sa.Column("role", userrole_enum, server_default="OWNER", nullable=False),
         sa.Column("business_id", UUID(as_uuid=True), sa.ForeignKey("businesses.id"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -89,8 +107,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(150), nullable=True),
         sa.Column("email", sa.String(255), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
-        # Customer control fields
-        sa.Column("status", sa.String(20), server_default="active", nullable=False),
+        sa.Column("status", customerstatus_enum, server_default="ACTIVE", nullable=False),
         sa.Column("ai_enabled", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("is_flagged", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("tags", ARRAY(sa.String(50)), nullable=True),
@@ -106,7 +123,7 @@ def upgrade() -> None:
         sa.Column("business_id", UUID(as_uuid=True), sa.ForeignKey("businesses.id"), nullable=False, index=True),
         sa.Column("customer_id", UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False, index=True),
         sa.Column("wa_conversation_id", sa.String(100), nullable=True),
-        sa.Column("mode", sa.String(10), server_default="ai", nullable=False),
+        sa.Column("mode", conversationmode_enum, server_default="AI", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("is_archived", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("is_locked", sa.Boolean(), server_default="false", nullable=False),
@@ -123,11 +140,11 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("conversation_id", UUID(as_uuid=True), sa.ForeignKey("conversations.id"), nullable=False, index=True),
         sa.Column("wa_message_id", sa.String(100), nullable=True, unique=True),
-        sa.Column("direction", sa.String(10), nullable=False),
-        sa.Column("msg_type", sa.String(20), server_default="text", nullable=False),
+        sa.Column("direction", messagedirection_enum, nullable=False),
+        sa.Column("msg_type", messagetype_enum, server_default="TEXT", nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("media_url", sa.String(500), nullable=True),
-        sa.Column("response_source", sa.String(20), nullable=True),
+        sa.Column("response_source", responsesource_enum, nullable=True),
         sa.Column("tokens_used", sa.Integer(), server_default="0", nullable=False),
         sa.Column("cost_naira", sa.Integer(), server_default="0", nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -142,7 +159,7 @@ def upgrade() -> None:
         sa.Column("customer_id", UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False, index=True),
         sa.Column("conversation_id", UUID(as_uuid=True), sa.ForeignKey("conversations.id"), nullable=True),
         sa.Column("order_ref", sa.String(20), nullable=False, unique=True, index=True),
-        sa.Column("status", sa.String(30), server_default="created", nullable=False),
+        sa.Column("status", orderstatus_enum, server_default="CREATED", nullable=False),
         sa.Column("total_amount", sa.Integer(), server_default="0", nullable=False),
         sa.Column("currency", sa.String(3), server_default="NGN", nullable=False),
         sa.Column("delivery_address", sa.Text(), nullable=True),
@@ -182,7 +199,7 @@ def upgrade() -> None:
         "plans",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(50), nullable=False),
-        sa.Column("tier", sa.String(20), nullable=False, unique=True),
+        sa.Column("tier", plantier_enum, nullable=False, unique=True),
         sa.Column("price_naira", sa.Integer(), nullable=False),
         sa.Column("conversation_limit", sa.Integer(), nullable=False),
         sa.Column("ai_messages_limit", sa.Integer(), nullable=False),
@@ -199,7 +216,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("business_id", UUID(as_uuid=True), sa.ForeignKey("businesses.id"), nullable=False, index=True),
         sa.Column("plan_id", UUID(as_uuid=True), sa.ForeignKey("plans.id"), nullable=False),
-        sa.Column("status", sa.String(20), server_default="trial", nullable=False),
+        sa.Column("status", subscriptionstatus_enum, server_default="TRIAL", nullable=False),
         sa.Column("current_period_start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=False),
         sa.Column("paystack_subscription_code", sa.String(100), nullable=True),
@@ -267,7 +284,7 @@ def upgrade() -> None:
         sa.Column("conversation_id", UUID(as_uuid=True), sa.ForeignKey("conversations.id"), nullable=True),
         sa.Column("service_name", sa.String(255), nullable=False),
         sa.Column("appointment_ref", sa.String(20), nullable=False, unique=True, index=True),
-        sa.Column("status", sa.String(20), server_default="requested", nullable=False),
+        sa.Column("status", appointmentstatus_enum, server_default="REQUESTED", nullable=False),
         sa.Column("scheduled_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("duration_mins", sa.Integer(), server_default="60", nullable=False),
         sa.Column("notes", sa.Text(), nullable=True),
@@ -301,7 +318,7 @@ def upgrade() -> None:
         sa.Column("business_id", UUID(as_uuid=True), sa.ForeignKey("businesses.id"), nullable=False, index=True),
         sa.Column("conversation_id", UUID(as_uuid=True), sa.ForeignKey("conversations.id"), nullable=False, index=True),
         sa.Column("customer_id", UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False, index=True),
-        sa.Column("conversion_type", sa.String(20), nullable=False),
+        sa.Column("conversion_type", conversiontype_enum, nullable=False),
         sa.Column("order_id", UUID(as_uuid=True), sa.ForeignKey("orders.id"), nullable=True),
         sa.Column("appointment_id", UUID(as_uuid=True), sa.ForeignKey("appointments.id"), nullable=True),
         sa.Column("revenue_amount", sa.Integer(), server_default="0", nullable=False),
@@ -329,7 +346,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("business_id", UUID(as_uuid=True), sa.ForeignKey("businesses.id"), nullable=False, index=True),
         sa.Column("name", sa.String(100), nullable=False),
-        sa.Column("category", sa.String(30), nullable=False),
+        sa.Column("category", templatecategory_enum, nullable=False),
         sa.Column("language_code", sa.String(10), server_default="en", nullable=False),
         sa.Column("body_text", sa.Text(), nullable=False),
         sa.Column("header_text", sa.String(255), nullable=True),
@@ -361,3 +378,19 @@ def downgrade() -> None:
     op.drop_table("customers")
     op.drop_table("users")
     op.drop_table("businesses")
+
+    # Drop enum types
+    templatecategory_enum.drop(op.get_bind(), checkfirst=True)
+    conversiontype_enum.drop(op.get_bind(), checkfirst=True)
+    appointmentstatus_enum.drop(op.get_bind(), checkfirst=True)
+    subscriptionstatus_enum.drop(op.get_bind(), checkfirst=True)
+    plantier_enum.drop(op.get_bind(), checkfirst=True)
+    orderstatus_enum.drop(op.get_bind(), checkfirst=True)
+    responsesource_enum.drop(op.get_bind(), checkfirst=True)
+    messagetype_enum.drop(op.get_bind(), checkfirst=True)
+    messagedirection_enum.drop(op.get_bind(), checkfirst=True)
+    conversationmode_enum.drop(op.get_bind(), checkfirst=True)
+    customerstatus_enum.drop(op.get_bind(), checkfirst=True)
+    userrole_enum.drop(op.get_bind(), checkfirst=True)
+    businesscategory_enum.drop(op.get_bind(), checkfirst=True)
+    businesstype_enum.drop(op.get_bind(), checkfirst=True)
