@@ -5,6 +5,8 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/customer.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -16,6 +18,7 @@ class CustomersScreen extends StatefulWidget {
 class _CustomersScreenState extends State<CustomersScreen> {
   List<Customer> _customers = [];
   bool _loading = true;
+  String? _error;
   String _search = '';
 
   @override
@@ -25,7 +28,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final api = context.read<ApiClient>();
     try {
       final query = _search.isNotEmpty ? '?search=$_search' : '';
@@ -33,28 +39,56 @@ class _CustomersScreenState extends State<CustomersScreen> {
           await api.get<List<dynamic>>('${Endpoints.customers}$query');
       _customers =
           data.map((j) => Customer.fromJson(j as Map<String, dynamic>)).toList();
-    } catch (_) {}
+    } catch (e) {
+      _error = 'Failed to load customers. Check your connection.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    }
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _toggleAi(Customer c) async {
     final api = context.read<ApiClient>();
-    await api.patch(Endpoints.updateCustomer(c.id),
-        data: {'ai_enabled': !c.aiEnabled});
-    _load();
+    try {
+      await api.patch(Endpoints.updateCustomer(c.id),
+          data: {'ai_enabled': !c.aiEnabled});
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update AI setting: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleFlag(Customer c) async {
     final api = context.read<ApiClient>();
-    await api.patch(Endpoints.updateCustomer(c.id),
-        data: {'is_flagged': !c.isFlagged});
-    _load();
+    try {
+      await api.patch(Endpoints.updateCustomer(c.id),
+          data: {'is_flagged': !c.isFlagged});
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update flag: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Customers')),
+      appBar: AppBar(
+        title: const Text('Customers'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -75,22 +109,25 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.emerald))
-                : _customers.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.people_outline,
-                        title: 'No customers yet',
-                      )
-                    : RefreshIndicator(
-                        color: AppColors.emerald,
-                        onRefresh: _load,
-                        child: ListView.builder(
-                          itemCount: _customers.length,
-                          itemBuilder: (_, i) =>
-                              _buildCustomerTile(_customers[i]),
-                        ),
-                      ),
+                ? const ListSkeleton()
+                : _error != null && _customers.isEmpty
+                    ? ErrorState(message: _error!, onRetry: _load)
+                    : _customers.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.people_outline,
+                            title: 'No customers yet',
+                            subtitle:
+                                'Customers from WhatsApp conversations will appear here.',
+                          )
+                        : RefreshIndicator(
+                            color: AppColors.emerald,
+                            onRefresh: _load,
+                            child: ListView.builder(
+                              itemCount: _customers.length,
+                              itemBuilder: (_, i) =>
+                                  _buildCustomerTile(_customers[i]),
+                            ),
+                          ),
           ),
         ],
       ),

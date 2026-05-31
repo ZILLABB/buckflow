@@ -7,6 +7,8 @@ import '../../core/utils/formatters.dart';
 import '../../models/order.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -18,6 +20,7 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   List<Order> _orders = [];
   bool _loading = true;
+  String? _error;
   String _filter = 'all';
 
   @override
@@ -27,7 +30,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _loadOrders() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final api = context.read<ApiClient>();
 
     try {
@@ -36,6 +42,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       _orders =
           data.map((j) => Order.fromJson(j as Map<String, dynamic>)).toList();
     } catch (e) {
+      _error = 'Failed to load orders. Pull down to retry.';
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Failed: $e')));
@@ -107,16 +114,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
           // Orders list
           Expanded(
             child: _loading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(color: AppColors.emerald))
-                : _orders.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.shopping_bag_outlined,
-                        title: 'No orders found',
-                        subtitle: 'Orders from WhatsApp conversations appear here.',
-                      )
-                    : RefreshIndicator(
+                ? const ListSkeleton()
+                : _error != null && _orders.isEmpty
+                    ? ErrorState(message: _error!, onRetry: _loadOrders)
+                    : _orders.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.shopping_bag_outlined,
+                            title: 'No orders found',
+                            subtitle: 'Orders from WhatsApp conversations appear here.',
+                          )
+                        : RefreshIndicator(
                         color: AppColors.emerald,
                         onRefresh: _loadOrders,
                         child: ListView.builder(

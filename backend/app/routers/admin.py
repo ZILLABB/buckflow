@@ -609,6 +609,82 @@ async def top_businesses(
     ]
 
 
+# ── Churn & Growth Metrics ────────────────────────────────────
+@router.get("/growth-metrics")
+async def growth_metrics(
+    admin: User = Depends(get_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform growth and churn metrics for the super admin dashboard."""
+    today = date.today()
+    thirty_days_ago = today - timedelta(days=30)
+    sixty_days_ago = today - timedelta(days=60)
+
+    # New businesses this month vs last month
+    new_this_month = await db.scalar(
+        select(func.count(Business.id)).where(
+            Business.created_at >= thirty_days_ago
+        )
+    ) or 0
+    new_last_month = await db.scalar(
+        select(func.count(Business.id)).where(
+            and_(
+                Business.created_at >= sixty_days_ago,
+                Business.created_at < thirty_days_ago,
+            )
+        )
+    ) or 0
+
+    # Active businesses (sent at least 1 message in last 30 days)
+    active_biz = await db.scalar(
+        select(func.count(func.distinct(UsageLog.business_id))).where(
+            UsageLog.log_date >= thirty_days_ago
+        )
+    ) or 0
+
+    total_biz = await db.scalar(select(func.count(Business.id))) or 0
+
+    # Churn rate = (inactive businesses / total) * 100
+    churn_rate = (
+        round(((total_biz - active_biz) / total_biz) * 100, 1)
+        if total_biz > 0
+        else 0
+    )
+
+    # Growth rate = ((new_this - new_last) / new_last) * 100
+    growth_rate = (
+        round(((new_this_month - new_last_month) / new_last_month) * 100, 1)
+        if new_last_month > 0
+        else 100.0 if new_this_month > 0 else 0
+    )
+
+    # Average messages per active business
+    total_msgs = await db.scalar(
+        select(func.coalesce(func.sum(UsageLog.total_messages), 0)).where(
+            UsageLog.log_date >= thirty_days_ago
+        )
+    ) or 0
+    avg_msgs = round(total_msgs / active_biz, 1) if active_biz > 0 else 0
+
+    # Revenue metrics
+    total_active_subs = await db.scalar(
+        select(func.count(Subscription.id)).where(
+            Subscription.status == SubscriptionStatus.ACTIVE
+        )
+    ) or 0
+
+    return {
+        "new_businesses_30d": new_this_month,
+        "new_businesses_prev_30d": new_last_month,
+        "growth_rate_pct": growth_rate,
+        "active_businesses_30d": active_biz,
+        "total_businesses": total_biz,
+        "churn_rate_pct": churn_rate,
+        "avg_messages_per_business": avg_msgs,
+        "active_subscriptions": total_active_subs,
+    }
+
+
 # ── System Health ──────────────────────────────────────────────
 @router.get("/health")
 async def system_health(

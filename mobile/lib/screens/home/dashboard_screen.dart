@@ -7,6 +7,8 @@ import '../../models/analytics.dart';
 import '../../models/business.dart';
 import '../../models/conversation.dart';
 import '../../widgets/stat_card.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,6 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
+  String? _error;
   AnalyticsOverview? _overview;
   Business? _business;
   List<Conversation> _recent = [];
@@ -28,7 +31,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final api = context.read<ApiClient>();
 
     try {
@@ -45,6 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .map((j) => Conversation.fromJson(j as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      _error = 'Failed to load dashboard data';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load: $e')),
@@ -58,8 +65,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AppColors.emerald)),
+      return Scaffold(
+        appBar: AppBar(title: const Text('Dashboard')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: const [
+            CardGridSkeleton(),
+            SizedBox(height: 24),
+            CardSkeleton(height: 100),
+            SizedBox(height: 24),
+            ListSkeleton(itemCount: 3),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null && _overview == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Dashboard')),
+        body: ErrorState(message: _error!, onRetry: _loadData),
       );
     }
 

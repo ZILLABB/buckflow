@@ -6,6 +6,8 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/analytics.dart';
 import '../../widgets/stat_card.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -16,6 +18,7 @@ class AnalyticsScreen extends StatefulWidget {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _loading = true;
+  String? _error;
   AnalyticsOverview? _overview;
   Map<String, dynamic>? _usage;
   Map<String, dynamic>? _breakdown;
@@ -40,6 +43,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       _usage = results[1];
       _breakdown = results[2];
     } catch (e) {
+      _error = 'Failed to load analytics data';
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Failed: $e')));
@@ -58,9 +62,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.emerald))
-          : RefreshIndicator(
+          ? ListView(
+              padding: const EdgeInsets.all(16),
+              children: const [
+                CardGridSkeleton(),
+                SizedBox(height: 24),
+                CardSkeleton(height: 200),
+                SizedBox(height: 16),
+                CardSkeleton(height: 150),
+              ],
+            )
+          : _error != null && _overview == null
+              ? ErrorState(message: _error!, onRetry: _loadData)
+              : RefreshIndicator(
               color: AppColors.emerald,
               onRefresh: _loadData,
               child: ListView(
