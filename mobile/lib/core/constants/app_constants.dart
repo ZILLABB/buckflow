@@ -3,10 +3,19 @@ class AppConstants {
 
   static const String appName = 'BuckFlow AI';
 
-  /// Default API base URL for development.
-  /// In production this will point to the deployed backend.
+  /// API base URLs.
+  /// devBaseUrl works for Android emulator (10.0.2.2 maps to host localhost).
+  /// For physical device testing, replace with your computer's local IP.
+  /// prodBaseUrl is the deployed backend.
   static const String devBaseUrl = 'http://10.0.2.2:8000'; // Android emulator
+  static const String physicalDeviceUrl = 'http://192.168.1.100:8000'; // Update with your local IP
   static const String prodBaseUrl = 'https://api.buckflow.ai';
+
+  /// Toggle this to switch environments.
+  static const bool isProduction = false;
+
+  /// Active base URL — switches between dev and prod automatically.
+  static String get baseUrl => isProduction ? prodBaseUrl : devBaseUrl;
 
   // Pagination
   static const int pageSize = 30;

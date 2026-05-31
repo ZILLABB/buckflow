@@ -1,14 +1,16 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.business import Business, BusinessType, BusinessCategory
 from app.models.rule_response import RuleResponse
+from app.models.usage_log import UsageLog
 from app.models.user import User
 
 router = APIRouter(prefix="/business", tags=["business"])
@@ -54,6 +56,23 @@ async def get_my_business(
     biz = result.scalar_one_or_none()
     if not biz:
         raise HTTPException(status_code=404, detail="Business not found")
+
+    # Query current month usage counters from usage_logs
+    today = date.today()
+    first_of_month = today.replace(day=1)
+    usage_result = await db.execute(
+        select(
+            func.coalesce(func.sum(UsageLog.conversations_started), 0).label("conversations_used"),
+            func.coalesce(
+                func.sum(UsageLog.ai_mini_responses + UsageLog.ai_premium_responses), 0
+            ).label("ai_messages_used"),
+        ).where(
+            UsageLog.business_id == biz.id,
+            UsageLog.log_date >= first_of_month,
+        )
+    )
+    usage = usage_result.one()
+
     return {
         "id": str(biz.id),
         "name": biz.name,
@@ -72,6 +91,10 @@ async def get_my_business(
         "booking_slot_duration_mins": biz.booking_slot_duration_mins,
         "human_only_mode": biz.human_only_mode,
         "ai_system_prompt": biz.ai_system_prompt,
+        "monthly_ai_limit": biz.monthly_ai_limit,
+        "monthly_conversation_limit": biz.monthly_conversation_limit,
+        "conversations_used": usage.conversations_used,
+        "ai_messages_used": usage.ai_messages_used,
     }
 
 

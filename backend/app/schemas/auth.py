@@ -52,10 +52,11 @@ class UserCreate(BaseModel):
     @field_validator("category")
     @classmethod
     def validate_category(cls, v: str) -> str:
+        # Must match BusinessCategory enum in models/business.py
         allowed = {
-            "fashion", "food", "electronics", "health_beauty",
-            "home_living", "education", "automotive", "agriculture",
-            "real_estate", "logistics", "consulting", "other",
+            "retail", "restaurant", "salon", "spa", "clinic",
+            "logistics", "consulting", "fashion", "electronics",
+            "grocery", "other",
         }
         if v not in allowed:
             raise ValueError(f"Category must be one of: {', '.join(sorted(allowed))}")

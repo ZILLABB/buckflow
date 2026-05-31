@@ -538,7 +538,7 @@ async def ai_cost_analytics(
 # ── Top Businesses by usage ───────────────────────────────────
 @router.get("/top-businesses")
 async def top_businesses(
-    metric: str = Query("messages", regex="^(messages|orders|revenue|ai_cost)$"),
+    metric: str = Query("messages", pattern="^(messages|orders|revenue|ai_cost)$"),
     limit: int = Query(10, le=50),
     admin: User = Depends(get_super_admin),
     db: AsyncSession = Depends(get_db),

@@ -10,7 +10,7 @@ import 'app.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final apiClient = ApiClient(baseUrl: AppConstants.devBaseUrl);
+  final apiClient = ApiClient(baseUrl: AppConstants.baseUrl);
 
   runApp(
     MultiProvider(
